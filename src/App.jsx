@@ -7,7 +7,7 @@ import PatientList from './pages/PatientList';
 import AppointmentForm from './pages/Appointment';
 import AppointmentList from './pages/AppointmentList';
 import FinancePage from './pages/FinancePage';
-import StatsPage from './pages/StatsPage';
+import StatsPage from './pages/Statspage';
 import OldAppointments from './pages/OldAppointments';
 
 import ProtectedRoute from './components/ProtectedRoute';
