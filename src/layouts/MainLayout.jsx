@@ -60,7 +60,7 @@ export default function MainLayout({ children }) {
   <Link to="/appointments" className="flex flex-col items-center">
     <span>نوبت‌ها</span>
   </Link>
-  <Link to="appointments/new" className="flex flex-col items-center">
+  <Link to="/appointments/new" className="flex flex-col items-center">
     <span>نوبتدهی</span>
   </Link>
 </nav>
