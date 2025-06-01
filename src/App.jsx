@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Patients from './pages/patients';
@@ -123,6 +123,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
 
         {/* Toast Notification */}
