@@ -6,7 +6,7 @@ export default function MainLayout({ children }) {
   const handleLogout = () => {
     if (window.confirm("آیا مطمئن هستید که می‌خواهید خارج شوید؟")) {
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = "/";
     }
   };
 
