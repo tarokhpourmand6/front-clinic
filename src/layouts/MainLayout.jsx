@@ -54,11 +54,14 @@ export default function MainLayout({ children }) {
   <Link to="/patients/list" className="flex flex-col items-center">
     <span>بیماران</span>
   </Link>
+   <Link to="/finance" className="flex flex-col items-center">
+    <span>مالی</span>
+  </Link>
   <Link to="/appointments" className="flex flex-col items-center">
     <span>نوبت‌ها</span>
   </Link>
-  <Link to="/finance" className="flex flex-col items-center">
-    <span>مالی</span>
+  <Link to="appointments/new" className="flex flex-col items-center">
+    <span>نوبتدهی</span>
   </Link>
 </nav>
         <footer className="text-xs text-gray-400 text-center py-4 border-t">
