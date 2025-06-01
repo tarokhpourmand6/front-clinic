@@ -111,9 +111,9 @@ export default function Dashboard() {
                   className="border rounded-md p-4 bg-gray-50 hover:bg-gray-100 transition"
                 >
                   <div className="font-semibold text-emerald-700">
-  {typeof appt.patientId === 'object'
-    ? appt.patientId.fullName
-    : patients.find((p) => p._id === appt.patientId)?.fullName || 'بیمار ناشناس'}
+  {appt?.patientId?.fullName ||
+    patients.find((p) => p._id === appt.patientId)?.fullName ||
+    'بیمار ناشناس'}
 </div>
                   <div className="text-sm text-gray-600">
                     {appt.type === 'Injection'

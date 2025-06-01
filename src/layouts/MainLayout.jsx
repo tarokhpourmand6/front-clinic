@@ -47,6 +47,20 @@ export default function MainLayout({ children }) {
 
         <main className="flex-1 p-6">{children}</main>
 
+<nav className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-inner flex justify-around py-2 text-xs md:hidden z-50">
+  <Link to="/dashboard" className="flex flex-col items-center text-emerald-600">
+    <span>خانه</span>
+  </Link>
+  <Link to="/patients/list" className="flex flex-col items-center">
+    <span>بیماران</span>
+  </Link>
+  <Link to="/appointments" className="flex flex-col items-center">
+    <span>نوبت‌ها</span>
+  </Link>
+  <Link to="/finance" className="flex flex-col items-center">
+    <span>مالی</span>
+  </Link>
+</nav>
         <footer className="text-xs text-gray-400 text-center py-4 border-t">
           © 2025 Powered by Dr. Tarokh Pourmand Version 1.0.0
         </footer>
