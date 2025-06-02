@@ -24,10 +24,12 @@ export default function Patients() {
   const [filterAddress, setFilterAddress] = useState('');
   const [filterBirthYear, setFilterBirthYear] = useState('');
   const [filterLastService, setFilterLastService] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const fetchPatientsWithLastService = async () => {
     try {
-      const res = await getPatients();
+      const res = await getPatients({ limit: 2000 });
       const data = Array.isArray(res) ? res : res.data;
       const appointments = await getAppointments();
       const lastServices = {};
@@ -66,102 +68,6 @@ export default function Patients() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const persianToEnglishDigits = (str) =>
-      str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
-
-    const cleanedPhone = persianToEnglishDigits(formData.phone).replace(/[^0-9]/g, '');
-
-    const payload = {
-      fullName: `${formData.firstName} ${formData.lastName}`,
-      phone: cleanedPhone,
-      birthDate: formData.birthDate
-        ? new Date(
-            formData.birthDate.year,
-            formData.birthDate.month - 1,
-            formData.birthDate.day
-          ).toISOString()
-        : undefined,
-      address: formData.address || '',
-      notes: formData.notes || '',
-    };
-
-    try {
-      if (editIndex !== null && formData._id) {
-        await updatePatient(formData._id, payload);
-      } else {
-        await createPatient(payload);
-      }
-
-      await fetchPatientsWithLastService();
-      setSuccess(true);
-      setFormData({
-        firstName: '',
-        lastName: '',
-        phone: '',
-        birthDate: null,
-        address: '',
-        notes: '',
-      });
-      setEditIndex(null);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      console.error("⛔️ خطا در ذخیره اطلاعات بیمار:", err);
-      if (err.response?.data?.errors) {
-        alert(err.response.data.errors.map((e) => e.msg).join('\n'));
-      } else {
-        alert("⛔️ خطا در ذخیره اطلاعات بیمار");
-      }
-    }
-  };
-
-  const handleDelete = async (index) => {
-    try {
-      await deletePatient(patients[index]._id);
-      const updated = [...patients];
-      updated.splice(index, 1);
-      setPatients(updated);
-    } catch (err) {
-      console.error("⛔️ خطا در حذف بیمار:", err);
-    }
-  };
-
-  const handleEdit = (index) => {
-    const selected = patients[index];
-
-    let firstName = '';
-    let lastName = '';
-    if (selected.fullName) {
-      const parts = selected.fullName.trim().split(' ');
-      firstName = parts[0] || '';
-      lastName = parts.slice(1).join(' ') || '';
-    }
-
-    let birthDateObj = null;
-    if (selected.birthDate) {
-      const date = new Date(selected.birthDate);
-      birthDateObj = {
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-        day: date.getDate(),
-      };
-    }
-
-    setFormData({
-      _id: selected._id,
-      firstName,
-      lastName,
-      phone: toPersianDigits(selected.phone || ''),
-      birthDate: birthDateObj,
-      address: selected.address || '',
-      notes: selected.notes || '',
-    });
-    setEditIndex(index);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const filteredPatients = patients.filter((p) => {
     const fullName = p.fullName || `${p.firstName} ${p.lastName}`;
     const matchesQuery = fullName.includes(searchQuery) || p.phone.includes(searchQuery);
@@ -174,15 +80,18 @@ export default function Patients() {
     return matchesQuery && matchesAddress && matchesBirthYear && matchesService;
   });
 
-  const formatDate = (date) => {
-    if (!date) return '';
-    const pad = (n) => n.toString().padStart(2, '0');
-    const toPersian = (str) => str.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
-    const { year, month, day } = date;
-    return toPersian(`${year}/${pad(month)}/${pad(day)}`);
-  };
+  const paginatedPatients = filteredPatients.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
-  const toPersianDigits = (str) => str?.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+  const totalPages = Math.ceil(filteredPatients.length / pageSize);
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
 
   return (
     <div className="p-6 max-w-2xl mx-auto font-vazir">
@@ -297,41 +206,45 @@ export default function Patients() {
         </div>
         <div className="overflow-x-auto rounded-xl shadow-md bg-white border border-gray-100">
           <table className="min-w-full text-sm text-right font-vazir">
-            <thead className="bg-brand text-white">
-              <tr>
-                <th className="px-4 py-3 border-b text-sm">نام و نام خانوادگی</th>
-                <th className="px-4 py-3 border-b text-sm">شماره تماس</th>
-                <th className="px-4 py-3 border-b text-sm">تاریخ تولد</th>
-                <th className="px-4 py-3 border-b text-sm">آدرس</th>
-                <th className="px-4 py-3 border-b text-sm">توضیحات</th>
-                <th className="px-4 py-3 border-b text-sm">آخرین خدمت</th>
-                <th className="px-4 py-3 border-b text-sm text-center">عملیات</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white">
-              {filteredPatients.map((patient, index) => (
-                <tr key={index} className="hover:bg-emerald-50/30 transition">
-                  <td className="px-4 py-2 text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => navigate(`/patients/${patient.phone}`)}>{patient.fullName}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{toPersianDigits(patient.phone)}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    {patient.birthDate ? formatDate({
-                      year: new Date(patient.birthDate).getFullYear(),
-                      month: new Date(patient.birthDate).getMonth() + 1,
-                      day: new Date(patient.birthDate).getDate()
-                    }) : '-'}
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">{patient.address || '-'}</td>
-                  <td className="px-4 py-2">{patient.notes || '-'}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{patient.lastService || '-'}</td>
-                  <td className="px-4 py-2 text-center whitespace-nowrap">
-                    <button onClick={() => handleEdit(index)} className="text-blue-600 text-xs underline ml-2">ویرایش</button>
-                    <button onClick={() => handleDelete(index)} className="text-red-600 text-xs underline">حذف</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <thead className="bg-brand text-white">
+          <tr>
+            <th className="px-4 py-3 border-b text-sm">نام و نام خانوادگی</th>
+            <th className="px-4 py-3 border-b text-sm">شماره تماس</th>
+            <th className="px-4 py-3 border-b text-sm">تاریخ تولد</th>
+            <th className="px-4 py-3 border-b text-sm">آدرس</th>
+            <th className="px-4 py-3 border-b text-sm">توضیحات</th>
+            <th className="px-4 py-3 border-b text-sm">آخرین خدمت</th>
+            <th className="px-4 py-3 border-b text-sm text-center">عملیات</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white">
+          {paginatedPatients.map((patient, index) => (
+            <tr key={index} className="hover:bg-emerald-50/30 transition">
+              <td className="px-4 py-2 text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => navigate(`/patients/${patient.phone}`)}>{patient.fullName}</td>
+              <td className="px-4 py-2 whitespace-nowrap">{patient.phone}</td>
+              <td className="px-4 py-2 whitespace-nowrap">
+                {patient.birthDate ? new Date(patient.birthDate).toLocaleDateString('fa-IR') : '-'}
+              </td>
+              <td className="px-4 py-2 whitespace-nowrap">{patient.address || '-'}</td>
+              <td className="px-4 py-2">{patient.notes || '-'}</td>
+              <td className="px-4 py-2 whitespace-nowrap">{patient.lastService || '-'}</td>
+              <td className="px-4 py-2 text-center whitespace-nowrap">
+                <button onClick={() => handleEdit(index)} className="text-blue-600 text-xs underline ml-2">ویرایش</button>
+                <button onClick={() => handleDelete(index)} className="text-red-600 text-xs underline">حذف</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="flex justify-between mt-4">
+        <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="text-sm px-3 py-1 border rounded">
+          قبلی
+        </button>
+        <span className="text-sm">صفحه {currentPage} از {totalPages}</span>
+        <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="text-sm px-3 py-1 border rounded">
+          بعدی
+        </button>
       </div>
     </div>
   );
