@@ -68,6 +68,63 @@ export default function Patients() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editIndex !== null) {
+        const updated = [...patients];
+        const editedPatient = { ...updated[editIndex], ...formData };
+        await updatePatient(editedPatient._id, editedPatient);
+        updated[editIndex] = editedPatient;
+        setPatients(updated);
+        setEditIndex(null);
+      } else {
+        const newPatient = await createPatient(formData);
+        setPatients([newPatient, ...patients]);
+      }
+      setFormData({
+        firstName: '',
+        lastName: '',
+        phone: '',
+        birthDate: null,
+        address: '',
+        notes: '',
+      });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+    } catch (err) {
+      console.error("⛔️ خطا در ذخیره بیمار:", err);
+    }
+  };
+
+  const handleEdit = (index) => {
+    setEditIndex(index);
+    const patient = patients[index];
+    setFormData({
+      firstName: patient.firstName || '',
+      lastName: patient.lastName || '',
+      phone: patient.phone || '',
+      birthDate: patient.birthDate || null,
+      address: patient.address || '',
+      notes: patient.notes || '',
+    });
+  };
+
+  const handleDelete = async (index) => {
+    const confirmed = window.confirm("آیا از حذف این بیمار مطمئن هستید؟");
+    if (!confirmed) return;
+
+    try {
+      const patient = patients[index];
+      await deletePatient(patient._id);
+      const updated = [...patients];
+      updated.splice(index, 1);
+      setPatients(updated);
+    } catch (err) {
+      console.error("⛔️ خطا در حذف بیمار:", err);
+    }
+  };
+
   const filteredPatients = patients.filter((p) => {
     const fullName = p.fullName || `${p.firstName} ${p.lastName}`;
     const matchesQuery = fullName.includes(searchQuery) || p.phone.includes(searchQuery);
@@ -112,33 +169,15 @@ export default function Patients() {
         <div className="space-y-4 text-right">
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">نام:</label>
-            <input
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">نام خانوادگی:</label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">شماره تماس:</label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">تاریخ تولد (شمسی):</label>
@@ -156,95 +195,69 @@ export default function Patients() {
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">آدرس:</label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="text" name="address" value={formData.address} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-start gap-4">
             <label className="w-32 text-sm font-medium mt-2">توضیحات:</label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows={3}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="text-left mt-4">
-            <button
-              type="submit"
-              className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition text-sm"
-            >
+            <button type="submit" className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition text-sm">
               {editIndex !== null ? 'ذخیره ویرایش' : 'ثبت بیمار'}
             </button>
           </div>
           {success && (
-            <p className="text-green-600 text-sm mt-2 text-center">
-              ✅ اطلاعات با موفقیت ذخیره شد!
-            </p>
+            <p className="text-green-600 text-sm mt-2 text-center">✅ اطلاعات با موفقیت ذخیره شد!</p>
           )}
         </div>
       </form>
 
-       <div className="mt-10">
+      <div className="mt-10">
         <h2 className="text-lg font-bold mb-4 text-emerald-800">📋 لیست بیماران</h2>
-        <input
-          type="text"
-          placeholder="جستجو بر اساس نام، نام خانوادگی یا شماره"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full mb-4 px-4 py-2 border border-gray-300 rounded-md text-sm shadow-sm"
-        />
+        <input type="text" placeholder="جستجو بر اساس نام، نام خانوادگی یا شماره" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full mb-4 px-4 py-2 border border-gray-300 rounded-md text-sm shadow-sm" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
           <input type="text" placeholder="فیلتر بر اساس آدرس" value={filterAddress} onChange={(e) => setFilterAddress(e.target.value)} className="px-3 py-2 border rounded text-sm" />
           <input type="text" placeholder="فیلتر بر اساس سال تولد" value={filterBirthYear} onChange={(e) => setFilterBirthYear(e.target.value)} className="px-3 py-2 border rounded text-sm" />
           <input type="text" placeholder="فیلتر بر اساس آخرین خدمت" value={filterLastService} onChange={(e) => setFilterLastService(e.target.value)} className="px-3 py-2 border rounded text-sm" />
         </div>
+
         <div className="overflow-x-auto rounded-xl shadow-md bg-white border border-gray-100">
           <table className="min-w-full text-sm text-right font-vazir">
-        <thead className="bg-brand text-white">
-          <tr>
-            <th className="px-4 py-3 border-b text-sm">نام و نام خانوادگی</th>
-            <th className="px-4 py-3 border-b text-sm">شماره تماس</th>
-            <th className="px-4 py-3 border-b text-sm">تاریخ تولد</th>
-            <th className="px-4 py-3 border-b text-sm">آدرس</th>
-            <th className="px-4 py-3 border-b text-sm">توضیحات</th>
-            <th className="px-4 py-3 border-b text-sm">آخرین خدمت</th>
-            <th className="px-4 py-3 border-b text-sm text-center">عملیات</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white">
-          {paginatedPatients.map((patient, index) => (
-            <tr key={index} className="hover:bg-emerald-50/30 transition">
-              <td className="px-4 py-2 text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => navigate(`/patients/${patient.phone}`)}>{patient.fullName}</td>
-              <td className="px-4 py-2 whitespace-nowrap">{patient.phone}</td>
-              <td className="px-4 py-2 whitespace-nowrap">
-                {patient.birthDate ? new Date(patient.birthDate).toLocaleDateString('fa-IR') : '-'}
-              </td>
-              <td className="px-4 py-2 whitespace-nowrap">{patient.address || '-'}</td>
-              <td className="px-4 py-2">{patient.notes || '-'}</td>
-              <td className="px-4 py-2 whitespace-nowrap">{patient.lastService || '-'}</td>
-              <td className="px-4 py-2 text-center whitespace-nowrap">
-                <button onClick={() => handleEdit(index)} className="text-blue-600 text-xs underline ml-2">ویرایش</button>
-                <button onClick={() => handleDelete(index)} className="text-red-600 text-xs underline">حذف</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            <thead className="bg-brand text-white">
+              <tr>
+                <th className="px-4 py-3 border-b text-sm">نام و نام خانوادگی</th>
+                <th className="px-4 py-3 border-b text-sm">شماره تماس</th>
+                <th className="px-4 py-3 border-b text-sm">تاریخ تولد</th>
+                <th className="px-4 py-3 border-b text-sm">آدرس</th>
+                <th className="px-4 py-3 border-b text-sm">توضیحات</th>
+                <th className="px-4 py-3 border-b text-sm">آخرین خدمت</th>
+                <th className="px-4 py-3 border-b text-sm text-center">عملیات</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {paginatedPatients.map((patient, index) => (
+                <tr key={index} className="hover:bg-emerald-50/30 transition">
+                  <td className="px-4 py-2 text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => navigate(`/patients/${patient.phone}`)}>{patient.fullName}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{patient.phone}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{patient.birthDate ? new Date(patient.birthDate).toLocaleDateString('fa-IR') : '-'}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{patient.address || '-'}</td>
+                  <td className="px-4 py-2">{patient.notes || '-'}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{patient.lastService || '-'}</td>
+                  <td className="px-4 py-2 text-center whitespace-nowrap">
+                    <button onClick={() => handleEdit(index)} className="text-blue-600 text-xs underline ml-2">ویرایش</button>
+                    <button onClick={() => handleDelete(index)} className="text-red-600 text-xs underline">حذف</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      <div className="flex justify-between mt-4">
-        <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="text-sm px-3 py-1 border rounded">
-          قبلی
-        </button>
-        <span className="text-sm">صفحه {currentPage} از {totalPages}</span>
-        <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="text-sm px-3 py-1 border rounded">
-          بعدی
-        </button>
+          <div className="flex justify-between mt-4">
+            <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="text-sm px-3 py-1 border rounded">قبلی</button>
+            <span className="text-sm">صفحه {currentPage} از {totalPages}</span>
+            <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="text-sm px-3 py-1 border rounded">بعدی</button>
+          </div>
+        </div>
       </div>
     </div>
   );
