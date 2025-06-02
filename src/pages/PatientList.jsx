@@ -24,11 +24,13 @@ export default function Patients() {
   const [filterAddress, setFilterAddress] = useState('');
   const [filterBirthYear, setFilterBirthYear] = useState('');
   const [filterLastService, setFilterLastService] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const fetchPatientsWithLastService = async () => {
     try {
-      const res = await getPatients();
-      const data = Array.isArray(res) ? res : res.data;
+      const res = await getPatients({ page, searchQuery, filterAddress, filterBirthYear, filterLastService });
+      const { data, totalPages } = res;
       const appointments = await getAppointments();
       const lastServices = {};
 
@@ -53,6 +55,7 @@ export default function Patients() {
       }));
 
       setPatients(updatedPatients);
+      setTotalPages(totalPages);
     } catch (err) {
       console.error("⛔️ خطا در دریافت بیماران یا نوبت‌ها:", err);
     }
@@ -60,10 +63,12 @@ export default function Patients() {
 
   useEffect(() => {
     fetchPatientsWithLastService();
-  }, []);
+  }, [page, searchQuery, filterAddress, filterBirthYear, filterLastService]);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handlePageChange = (newPage) => {
+    if (newPage > 0 && newPage <= totalPages) {
+      setPage(newPage);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -332,6 +337,14 @@ export default function Patients() {
             </tbody>
           </table>
         </div>
+<div className="flex justify-between mt-4">
+        <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="text-sm px-3 py-1 border rounded">
+          قبلی
+        </button>
+        <span className="text-sm">صفحه {page} از {totalPages}</span>
+        <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} className="text-sm px-3 py-1 border rounded">
+          بعدی
+        </button>
       </div>
     </div>
   );
