@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { login } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
-import logo from '../assets/logo-green.png'; // مسیر لوگو را تنظیم کن
+import logo from '../assets/logo.png'; // مسیر لوگو
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -25,7 +25,12 @@ function Login() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#00b9b5] px-4" dir="rtl">
       <div className="w-full max-w-sm space-y-6 text-center">
-        <img src={logo} alt="Milad Beauty Center" className="mx-auto w-40" />
+        <img
+          src={logo}
+          alt="Milad Beauty Center"
+          className="mx-auto w-60 opacity-0 animate-fade-in"
+          style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}
+        />
 
         <div className="bg-white p-6 rounded-2xl shadow-md font-vazir space-y-5">
           <h2 className="text-xl font-bold text-right text-gray-800">ورود به سامانه</h2>
