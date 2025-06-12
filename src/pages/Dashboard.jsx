@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { getAllProducts } from '../api/inventory';
 import { getPatients } from '../api/patients';
 import { getAppointments } from '../api/appointments';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function Dashboard() {
   const [patients, setPatients] = useState([]);
@@ -14,34 +15,43 @@ export default function Dashboard() {
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(0);
   const [todayTotalPayment, setTodayTotalPayment] = useState(0);
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     const fetchData = async () => {
-      const fetchedPatients = await getPatients();
-      const fetchedAppointments = await getAppointments();
-      const fetchedInventory = await getAllProducts();
+      try {
+        setLoading(true);
+        const fetchedPatients = await getPatients();
+        const fetchedAppointments = await getAppointments();
+        const fetchedInventory = await getAllProducts();
 
-      const patientsArray = Array.isArray(fetchedPatients) ? fetchedPatients : fetchedPatients.data;
-      const appointmentsArray = Array.isArray(fetchedAppointments) ? fetchedAppointments : fetchedAppointments.data;
+        const patientsArray = Array.isArray(fetchedPatients) ? fetchedPatients : fetchedPatients.data;
+        const appointmentsArray = Array.isArray(fetchedAppointments) ? fetchedAppointments : fetchedAppointments.data;
 
-      setPatients(patientsArray);
-      setAppointments(appointmentsArray);
-      setInventory(fetchedInventory);
-      setPatientsCount(patientsArray.length);
+        setPatients(patientsArray);
+        setAppointments(appointmentsArray);
+        setInventory(fetchedInventory);
+        setPatientsCount(patientsArray.length);
 
-      const today = getToday();
+        const today = getToday();
 
-      const todayAppointments = appointmentsArray.filter(
-        (a) =>
-          a.dateShamsi === `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`
-      );
+        const todayAppointments = appointmentsArray.filter(
+          (a) =>
+            a.dateShamsi === `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`
+        );
 
-      setTodayAppointmentsCount(todayAppointments.length);
+        setTodayAppointmentsCount(todayAppointments.length);
 
-      const totalPayment = todayAppointments.reduce((acc, a) => {
-        return a.status === 'Completed' && a.price ? acc + Number(a.price) : acc;
-      }, 0);
+        const totalPayment = todayAppointments.reduce((acc, a) => {
+          return a.status === 'Completed' && a.price ? acc + Number(a.price) : acc;
+        }, 0);
 
-      setTodayTotalPayment(totalPayment);
+        setTodayTotalPayment(totalPayment);
+      } catch (err) {
+        console.error("⛔️ خطا در دریافت داده‌ها:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -50,6 +60,14 @@ export default function Dashboard() {
   const toPersianNumber = (str) => {
     return String(str).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#e8f9f9] font-vazir">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#e8f9f9] p-6 font-vazir">
@@ -111,10 +129,10 @@ export default function Dashboard() {
                   className="border rounded-md p-4 bg-gray-50 hover:bg-gray-100 transition"
                 >
                   <div className="font-semibold text-emerald-700">
-  {appt?.patientId?.fullName ||
-    patients.find((p) => p._id === appt.patientId)?.fullName ||
-    'بیمار ناشناس'}
-</div>
+                    {appt?.patientId?.fullName ||
+                      patients.find((p) => p._id === appt.patientId)?.fullName ||
+                      'بیمار ناشناس'}
+                  </div>
                   <div className="text-sm text-gray-600">
                     {appt.type === 'Injection'
                       ? appt.consumables?.map((c) => `${c.name} (${c.amount})`).join(', ')

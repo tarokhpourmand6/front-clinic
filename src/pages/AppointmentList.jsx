@@ -1,4 +1,3 @@
-// AppointmentList.jsx – ساختار ماژولار شده با جدول‌های جداگانه و منظم
 import { useEffect, useState } from 'react';
 import useAppointmentsStore from '../store/useAppointmentsStore';
 import ConsumablesModal from '../components/finance/ConsumablesModal';
@@ -7,6 +6,7 @@ import Filters from '../components/appointments/Filters';
 import SummaryBox from '../components/appointments/SummaryBox';
 import InjectionTable from '../components/appointments/InjectionTable';
 import LaserTable from '../components/appointments/LaserTable';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const AppointmentList = () => {
   const {
@@ -20,9 +20,15 @@ const AppointmentList = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [laserModalOpen, setLaserModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAppointments();
+    const fetchWithLoading = async () => {
+      setLoading(true);
+      await fetchAppointments();
+      setLoading(false);
+    };
+    fetchWithLoading();
   }, []);
 
   const filtered = appointments.filter((a) => {
@@ -45,23 +51,23 @@ const AppointmentList = () => {
   const laserAppointments = filtered.filter((a) => a.type === 'Laser');
 
   const handleStatusChange = async (appointmentId, newStatus) => {
-  const mapped = newStatus === 'done' ? 'Completed' : newStatus === 'pending' ? 'Scheduled' : 'Canceled';
-  await updateAppointmentItem(appointmentId, { status: mapped });
-};
+    const mapped = newStatus === 'done' ? 'Completed' : newStatus === 'pending' ? 'Scheduled' : 'Canceled';
+    await updateAppointmentItem(appointmentId, { status: mapped });
+  };
 
-const handlePriceChange = async (appointmentId, val) => {
-  const cleaned = val.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^0-9]/g, '');
-  await updateAppointmentItem(appointmentId, { price: Number(cleaned) });
-};
+  const handlePriceChange = async (appointmentId, val) => {
+    const cleaned = val.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^0-9]/g, '');
+    await updateAppointmentItem(appointmentId, { price: Number(cleaned) });
+  };
 
-const handleTimeChange = async (appointmentId, time) => {
-  await updateAppointmentItem(appointmentId, { time });
-};
+  const handleTimeChange = async (appointmentId, time) => {
+    await updateAppointmentItem(appointmentId, { time });
+  };
 
-const handleDateChange = async (appointmentId, dateObj) => {
-  const dateShamsi = `${dateObj.year}-${String(dateObj.month).padStart(2, "0")}-${String(dateObj.day).padStart(2, "0")}`;
-  await updateAppointmentItem(appointmentId, { dateShamsi });
-};
+  const handleDateChange = async (appointmentId, dateObj) => {
+    const dateShamsi = `${dateObj.year}-${String(dateObj.month).padStart(2, "0")}-${String(dateObj.day).padStart(2, "0")}`;
+    await updateAppointmentItem(appointmentId, { dateShamsi });
+  };
 
   const handleDelete = async (id) => {
     await deleteAppointmentItem(id);
@@ -76,6 +82,14 @@ const handleDateChange = async (appointmentId, dateObj) => {
     setSelectedAppointmentId(appointmentId);
     setLaserModalOpen(true);
   };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex justify-center items-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 font-vazir">

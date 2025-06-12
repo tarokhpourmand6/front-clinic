@@ -1,4 +1,3 @@
-// AppointmentNew.jsx (نسخه بازنویسی‌شده کامل با بارگذاری ایمن و اتصال کامل به API)
 import { useState, useEffect } from "react";
 import DatePicker from "../components/DatePicker/DatePicker";
 import LaserAreaSelector from "../components/LaserAreaSelector";
@@ -7,6 +6,7 @@ import { getPatients, createPatient } from "../api/patients";
 import { createAppointment } from "../api/appointments";
 import { getAllProducts } from "../api/inventory";
 import { getLaserPrices } from "../api/laserPrice";
+import LoadingSpinner from "../components/LoadingSpinner";
 import moment from "moment-jalaali";
 moment.loadPersian({ dialect: "persian-modern" });
 
@@ -15,6 +15,7 @@ const AppointmentNew = () => {
   const [patients, setPatients] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [laserPrices, setLaserPrices] = useState({});
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -35,6 +36,7 @@ const AppointmentNew = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
+        setLoading(true);
         const patientRes = await getPatients();
         const patientList = Array.isArray(patientRes) ? patientRes : patientRes.data;
         setPatients(patientList);
@@ -50,6 +52,8 @@ const AppointmentNew = () => {
         setLaserPrices(priceMap);
       } catch (err) {
         console.error("⛔️ خطا در بارگذاری داده‌ها:", err);
+      } finally {
+        setLoading(false);
       }
     };
     loadInitialData();
@@ -112,6 +116,14 @@ const AppointmentNew = () => {
       )
     : [];
 
+  if (loading) {
+    return (
+      <div className="h-screen flex justify-center items-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 max-w-xl mx-auto font-vazir">
       <h2 className="text-lg font-bold mb-4">ثبت نوبت جدید</h2>
@@ -134,7 +146,8 @@ const AppointmentNew = () => {
             {p.fullName} - {p.phone}
           </button>
         ))}
-<button onClick={() => navigate("/patients/list")} className="text-blue-600 text-sm mb-4">+ ثبت بیمار جدید</button>
+      <button onClick={() => navigate("/patients/list")} className="text-blue-600 text-sm mb-4">+ ثبت بیمار جدید</button>
+
       {selectedPatient && (
         <>
           <div className="bg-gray-100 p-2 rounded mb-4">
@@ -146,13 +159,13 @@ const AppointmentNew = () => {
             <select
               value={appointment.serviceType}
               onChange={(e) => {
-  const type = e.target.value;
-  setAppointment({
-    ...appointment,
-    serviceType: type,
-    serviceOption: [],
-  });
-}}
+                const type = e.target.value;
+                setAppointment({
+                  ...appointment,
+                  serviceType: type,
+                  serviceOption: [],
+                });
+              }}
               className="border p-2 rounded w-full text-sm"
             >
               <option value="تزریقات">تزریقات</option>
@@ -161,52 +174,52 @@ const AppointmentNew = () => {
           </div>
 
           {appointment.serviceType === "تزریقات" && (
-  <div className="mb-4">
-    <label className="text-sm block mb-1">انتخاب نوع تزریقات:</label>
-    <div className="grid grid-cols-2 gap-2 text-sm">
-      {inventory.map((item, i) => {
-        const selected = Array.isArray(appointment.serviceOption)
-          ? appointment.serviceOption.find((x) => typeof x === "object" && x.name === item.name)
-          : null;
+            <div className="mb-4">
+              <label className="text-sm block mb-1">انتخاب نوع تزریقات:</label>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {inventory.map((item, i) => {
+                  const selected = Array.isArray(appointment.serviceOption)
+                    ? appointment.serviceOption.find((x) => typeof x === "object" && x.name === item.name)
+                    : null;
 
-        return (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={!!selected}
-              onChange={(e) => {
-                let updated = [...appointment.serviceOption];
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={!!selected}
+                        onChange={(e) => {
+                          let updated = [...appointment.serviceOption];
 
-                if (e.target.checked) {
-                  updated.push({ name: item.name, amount: 1 });
-                } else {
-                  updated = updated.filter((x) => x.name !== item.name);
-                }
+                          if (e.target.checked) {
+                            updated.push({ name: item.name, amount: 1 });
+                          } else {
+                            updated = updated.filter((x) => x.name !== item.name);
+                          }
 
-                setAppointment({ ...appointment, serviceOption: updated });
-              }}
-            />
-            {item.name}
-            {!!selected && (
-              <input
-                type="number"
-                min="1"
-                value={selected.amount || 1}
-                onChange={(e) => {
-                  const updated = appointment.serviceOption.map((opt) =>
-                    opt.name === item.name ? { ...opt, amount: e.target.value } : opt
+                          setAppointment({ ...appointment, serviceOption: updated });
+                        }}
+                      />
+                      {item.name}
+                      {!!selected && (
+                        <input
+                          type="number"
+                          min="1"
+                          value={selected.amount || 1}
+                          onChange={(e) => {
+                            const updated = appointment.serviceOption.map((opt) =>
+                              opt.name === item.name ? { ...opt, amount: e.target.value } : opt
+                            );
+                            setAppointment({ ...appointment, serviceOption: updated });
+                          }}
+                          className="w-16 border p-1 text-sm rounded text-center"
+                        />
+                      )}
+                    </div>
                   );
-                  setAppointment({ ...appointment, serviceOption: updated });
-                }}
-                className="w-16 border p-1 text-sm rounded text-center"
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+                })}
+              </div>
+            </div>
+          )}
 
           {appointment.serviceType === "لیزر" && (
             <>
