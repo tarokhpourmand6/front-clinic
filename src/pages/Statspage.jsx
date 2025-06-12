@@ -1,4 +1,4 @@
-// StatsPage.jsx (نسخه کامل با محاسبه دقیق سود تزریقات بر اساس FIFO)
+// StatsPage.jsx (نسخه کامل با احراز هویت ساده)
 import { useState, useEffect } from "react";
 import DatePicker from "../components/DatePicker/DatePicker";
 import "../components/DatePicker/DatePicker.css";
@@ -13,22 +13,57 @@ export default function StatsPage() {
   const [products, setProducts] = useState([]);
   const [patients, setPatients] = useState([]);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [password, setPassword] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
-      const appts = await getAppointments();
-      const prods = await getAllProducts();
-      const pats = await getPatients();
+    if (authenticated) {
+      const fetchData = async () => {
+        const appts = await getAppointments();
+        const prods = await getAllProducts();
+        const pats = await getPatients();
+        setAppointments(appts);
+        setProducts(prods);
+        setPatients(Array.isArray(pats) ? pats : pats.data);
+      };
+      fetchData();
+    }
+  }, [authenticated]);
 
-      setAppointments(appts);
-      setProducts(prods);
-      setPatients(Array.isArray(pats) ? pats : pats.data);
-    };
-    fetchData();
-  }, []);
+  const handlePasswordSubmit = () => {
+    if (password === "Sayari2025") {
+      setAuthenticated(true);
+    } else {
+      alert("رمز عبور نادرست است");
+    }
+  };
 
-  const formatDateObj = (obj) => `${obj.year}-${String(obj.month).padStart(2, "0")}-${String(obj.day).padStart(2, "0")}`;
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-gray-100 font-vazir p-4">
+        <div className="bg-white shadow p-6 rounded-xl w-full max-w-sm">
+          <h2 className="text-lg font-bold mb-4 text-center">ورود به صفحه گزارش</h2>
+          <input
+            type="password"
+            placeholder="رمز عبور را وارد کنید"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="border w-full p-2 rounded mb-4"
+          />
+          <button
+            onClick={handlePasswordSubmit}
+            className="w-full bg-brand text-white py-2 rounded"
+          >
+            ورود
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const formatDateObj = (obj) =>
+    `${obj.year}-${String(obj.month).padStart(2, "0")}-${String(obj.day).padStart(2, "0")}`;
 
   const isInRange = (dateShamsi) => {
     if (!dateRange.from || !dateRange.to) return true;
@@ -40,7 +75,6 @@ export default function StatsPage() {
   };
 
   const filtered = appointments.filter((a) => a.status === "Completed" && isInRange(a.dateShamsi));
-
   const injectionAppointments = filtered.filter((a) => a.type === "Injection");
   const laserAppointments = filtered.filter((a) => a.type === "Laser");
 
@@ -48,7 +82,6 @@ export default function StatsPage() {
   const laserRevenue = laserAppointments.reduce((sum, a) => sum + Number(a.price || 0), 0);
 
   let injectionCost = 0;
-
   injectionAppointments.forEach((appt) => {
     appt.consumables?.forEach(({ name, amount }) => {
       const product = products.find((p) => p.name === name);
