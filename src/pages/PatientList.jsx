@@ -4,6 +4,7 @@ import DatePicker from "../components/DatePicker/DatePicker.jsx";
 import '../components/DatePicker/DatePicker.css';
 import { getPatients, createPatient, updatePatient, deletePatient } from '../api/patients';
 import { getAppointments } from '../api/appointments';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function Patients() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function Patients() {
 
   const [success, setSuccess] = useState(false);
   const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [editIndex, setEditIndex] = useState(null);
   const [filterAddress, setFilterAddress] = useState('');
@@ -27,6 +29,7 @@ export default function Patients() {
 
   const fetchPatientsWithLastService = async () => {
     try {
+      setLoading(true);
       const res = await getPatients();
       const data = Array.isArray(res) ? res : res.data;
       const appointments = await getAppointments();
@@ -55,6 +58,8 @@ export default function Patients() {
       setPatients(updatedPatients);
     } catch (err) {
       console.error("⛔️ خطا در دریافت بیماران یا نوبت‌ها:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -183,6 +188,14 @@ export default function Patients() {
   };
 
   const toPersianDigits = (str) => str?.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+
+ if (loading) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto font-vazir">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-2xl mx-auto font-vazir">
