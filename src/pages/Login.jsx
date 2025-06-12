@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { login } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
-import logo from '../assets/logo.png'; // مسیر لوگو
+import logo from '../assets/logo-green.png'; // مسیر لوگو
 
 function Login() {
   const [username, setUsername] = useState('');
