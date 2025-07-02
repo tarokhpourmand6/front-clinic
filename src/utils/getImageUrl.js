@@ -1,7 +1,7 @@
-const BASE_URL = "https://clinic-crm-backend.onrender.com"; // اگر بعداً دامنه‌ات عوض شد، فقط اینو تغییر بده
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function getImageUrl(relativePath) {
   if (!relativePath) return "";
-  if (relativePath.startsWith("http")) return relativePath; // اگر کامل بود تغییر نده
-  return `${BASE_URL}${relativePath}`;
+  if (relativePath.startsWith("http")) return relativePath;
+  return `${BASE_URL}/${relativePath.replace(/^\//, "")}`;
 }
