@@ -11,6 +11,8 @@ const LaserTable = ({
   onPriceChange,
   onDelete,
   onOpenLaser,
+  paymentMethods,
+  onPaymentChange
 }) => {
   const [sortField, setSortField] = useState(null);
   const [sortAsc, setSortAsc] = useState(true);
@@ -41,21 +43,15 @@ const LaserTable = ({
           <tr>
             <th className="px-2 py-1">نام</th>
             <th className="px-2 py-1">تلفن</th>
-            <th
-              className="px-2 py-1 cursor-pointer"
-              onClick={() => handleSort('dateShamsi')}
-            >
+            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort('dateShamsi')}>
               تاریخ {sortField === 'dateShamsi' && (sortAsc ? '▲' : '▼')}
             </th>
-            <th
-              className="px-2 py-1 cursor-pointer"
-              onClick={() => handleSort('time')}
-            >
+            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort('time')}>
               ساعت {sortField === 'time' && (sortAsc ? '▲' : '▼')}
             </th>
-            <th className="px-2 py-1">خدمت</th>
             <th className="px-2 py-1">وضعیت</th>
             <th className="px-2 py-1">مبلغ + نواحی</th>
+            <th className="px-2 py-1">روش پرداخت</th>
             <th className="px-2 py-1">عملیات</th>
           </tr>
         </thead>
@@ -85,7 +81,6 @@ const LaserTable = ({
                   ))}
                 </select>
               </td>
-              <td className="border px-2 py-1">{a.type}</td>
               <td className="border px-2 py-1">
                 <select
                   value={
@@ -117,6 +112,45 @@ const LaserTable = ({
                     {a.laserAreas.map((l) => l.area).join(' + ')}
                   </div>
                 )}
+              </td>
+              <td className="border px-2 py-1 text-xs space-y-1">
+                {paymentMethods.map((pm) => (
+                  <div key={pm.name} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={!!a.paymentDetails?.find((p) => p.method === pm.name)}
+                      onChange={(e) => {
+                        const existing = a.paymentDetails || [];
+                        let updated;
+
+                        if (e.target.checked) {
+                          updated = [...existing, { method: pm.name, amount: 0 }];
+                        } else {
+                          updated = existing.filter((p) => p.method !== pm.name);
+                        }
+
+                        onPaymentChange(a._id, updated);
+                      }}
+                    />
+                    <span>{pm.name}</span>
+                    {a.paymentDetails?.find((p) => p.method === pm.name) && (
+                      <input
+                        type="number"
+                        value={
+                          a.paymentDetails.find((p) => p.method === pm.name)?.amount || ''
+                        }
+                        onChange={(e) => {
+                          const newList = a.paymentDetails.map((p) =>
+                            p.method === pm.name ? { ...p, amount: +e.target.value } : p
+                          );
+                          onPaymentChange(a._id, newList);
+                        }}
+                        className="border rounded px-1 py-0.5 w-20 text-xs text-right"
+                        placeholder="مبلغ"
+                      />
+                    )}
+                  </div>
+                ))}
               </td>
               <td className="border px-2 py-1 flex gap-2 items-center">
                 <button className="text-red-500" onClick={() => onDelete(a._id)}>
