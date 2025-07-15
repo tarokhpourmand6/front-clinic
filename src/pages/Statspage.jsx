@@ -100,6 +100,13 @@ export default function StatsPage() {
     });
   });
 
+  const allPayments = {};
+  filtered.forEach((a) => {
+    a.paymentDetails?.forEach(({ method, amount }) => {
+      allPayments[method] = (allPayments[method] || 0) + Number(amount || 0);
+    });
+  });
+
   return (
     <div className="p-6 max-w-6xl mx-auto font-vazir">
       <div className="flex justify-between items-center mb-6">
@@ -155,6 +162,20 @@ export default function StatsPage() {
           <p className="text-lg font-bold">{toPersianNumber(laserRevenue.toLocaleString())} تومان</p>
         </div>
       </div>
+
+      {Object.keys(allPayments).length > 0 && (
+        <div className="bg-white shadow p-4 rounded-xl text-sm mb-6">
+          <h3 className="font-bold mb-2">ورودی بر اساس روش پرداخت</h3>
+          <ul className="space-y-1">
+            {Object.entries(allPayments).map(([method, amount]) => (
+              <li key={method} className="flex justify-between border-b pb-1">
+                <span>{method}</span>
+                <span>{toPersianNumber(amount.toLocaleString())} تومان</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
