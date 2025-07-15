@@ -10,9 +10,11 @@ const InjectionTable = ({
   onStatusChange,
   onPriceChange,
   onDelete,
-  onOpenConsumables
+  onOpenConsumables,
+  paymentMethods,
+  onOpenPaymentModal
 }) => {
-  const [sortField, setSortField] = useState(null); // "dateShamsi" یا "time"
+  const [sortField, setSortField] = useState(null);
   const [sortAsc, setSortAsc] = useState(true);
 
   const handleSort = (field) => {
@@ -26,10 +28,8 @@ const InjectionTable = ({
 
   const sortedData = [...(data || [])].sort((a, b) => {
     if (!sortField) return 0;
-
     const valA = a[sortField] || "";
     const valB = b[sortField] || "";
-
     return sortAsc
       ? valA.localeCompare(valB, "fa")
       : valB.localeCompare(valA, "fa");
@@ -38,7 +38,7 @@ const InjectionTable = ({
   return (
     <div className="mt-6">
       <h2 className="font-bold text-md mb-2">نوبت‌های تزریقات</h2>
-      <table className="w-full text-sm text-right">
+      <table className="w-full text-sm text-right font-vazir">
         <thead className="bg-brand text-white">
           <tr>
             <th className="px-2 py-1">نام</th>
@@ -46,18 +46,16 @@ const InjectionTable = ({
             <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("dateShamsi")}>
               تاریخ {sortField === "dateShamsi" && (sortAsc ? "▲" : "▼")}
             </th>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time")}>
-              ساعت {sortField === "time" && (sortAsc ? "▲" : "▼")}
-            </th>
-            <th className="px-2 py-1">خدمت</th>
+            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time")}>ساعت {sortField === "time" && (sortAsc ? "▲" : "▼")}</th>
             <th className="px-2 py-1">وضعیت</th>
             <th className="px-2 py-1">مبلغ + موارد</th>
+            <th className="px-2 py-1">روش پرداخت</th>
             <th className="px-2 py-1">عملیات</th>
           </tr>
         </thead>
         <tbody>
           {sortedData.map((a, i) => (
-            <tr key={i} className="even:bg-gray-50">
+            <tr key={i} className="even:bg-gray-50 text-[12px]">
               <td className="border px-2 py-1">{a.patientId?.fullName}</td>
               <td className="border px-2 py-1">{toPersianNumber(a.patientId?.phone || '')}</td>
               <td className="border px-2 py-1">
@@ -79,7 +77,6 @@ const InjectionTable = ({
                   ))}
                 </select>
               </td>
-              <td className="border px-2 py-1">{a.type}</td>
               <td className="border px-2 py-1">
                 <select
                   value={a.status === 'Completed' ? 'done' : a.status === 'Scheduled' ? 'pending' : 'canceled'}
@@ -103,6 +100,14 @@ const InjectionTable = ({
                     {a.consumables.map((c) => `${c.name} (${c.amount})`).join(" + ")}
                   </div>
                 )}
+              </td>
+              <td className="border px-2 py-1 text-center">
+                <button
+                  onClick={() => onOpenPaymentModal(a._id, a.paymentDetails || [], a.price || 0)}
+                  className="text-blue-600 hover:text-blue-800 underline text-xs"
+                >
+                  مدیریت پرداخت
+                </button>
               </td>
               <td className="border px-2 py-1 flex gap-2 items-center">
                 <button className="text-red-500" onClick={() => onDelete(a._id)}>حذف</button>
