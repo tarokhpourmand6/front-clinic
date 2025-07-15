@@ -1,4 +1,4 @@
-// StatsPage.jsx (نسخه کامل با احراز هویت ساده)
+// StatsPage.jsx (نسخه کامل + نمایش مبالغ بر اساس روش پرداخت)
 import { useState, useEffect } from "react";
 import DatePicker from "../components/DatePicker/DatePicker";
 import "../components/DatePicker/DatePicker.css";
@@ -62,9 +62,6 @@ export default function StatsPage() {
     );
   }
 
-  const formatDateObj = (obj) =>
-    `${obj.year}-${String(obj.month).padStart(2, "0")}-${String(obj.day).padStart(2, "0")}`;
-
   const isInRange = (dateShamsi) => {
     if (!dateRange.from || !dateRange.to) return true;
     const from = new Date(dateRange.from.year, dateRange.from.month - 1, dateRange.from.day);
@@ -100,10 +97,11 @@ export default function StatsPage() {
     });
   });
 
-  const allPayments = {};
-  filtered.forEach((a) => {
-    a.paymentDetails?.forEach(({ method, amount }) => {
-      allPayments[method] = (allPayments[method] || 0) + Number(amount || 0);
+  const paymentSummary = {};
+  filtered.forEach((appt) => {
+    appt.paymentDetails?.forEach(({ method, amount }) => {
+      if (!paymentSummary[method]) paymentSummary[method] = 0;
+      paymentSummary[method] += Number(amount || 0);
     });
   });
 
@@ -163,19 +161,19 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {Object.keys(allPayments).length > 0 && (
-        <div className="bg-white shadow p-4 rounded-xl text-sm mb-6">
-          <h3 className="font-bold mb-2">ورودی بر اساس روش پرداخت</h3>
-          <ul className="space-y-1">
-            {Object.entries(allPayments).map(([method, amount]) => (
-              <li key={method} className="flex justify-between border-b pb-1">
-                <span>{method}</span>
-                <span>{toPersianNumber(amount.toLocaleString())} تومان</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        {Object.entries(paymentSummary).map(([method, amount]) => (
+          <div
+            key={method}
+            className="bg-white shadow p-4 rounded-xl text-center border-t-4 border-yellow-500"
+          >
+            <p className="text-gray-600 mb-1">{method}</p>
+            <p className="text-lg font-bold">
+              {toPersianNumber(amount.toLocaleString())} تومان
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
