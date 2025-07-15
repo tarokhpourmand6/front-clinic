@@ -7,6 +7,7 @@ import SummaryBox from '../components/appointments/SummaryBox';
 import InjectionTable from '../components/appointments/InjectionTable';
 import LaserTable from '../components/appointments/LaserTable';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getPaymentMethods } from '../api/paymentMethodApi';
 
 const AppointmentList = () => {
   const {
@@ -21,11 +22,20 @@ const AppointmentList = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [laserModalOpen, setLaserModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [paymentMethods, setPaymentMethods] = useState([]);
 
   useEffect(() => {
     const fetchWithLoading = async () => {
       setLoading(true);
       await fetchAppointments();
+
+      try {
+        const methods = await getPaymentMethods();
+        setPaymentMethods(methods);
+      } catch (err) {
+        console.error("Failed to load payment methods:", err.message);
+      }
+
       setLoading(false);
     };
     fetchWithLoading();
@@ -83,6 +93,10 @@ const AppointmentList = () => {
     setLaserModalOpen(true);
   };
 
+  const handlePaymentChange = async (appointmentId, newPaymentDetails) => {
+    await updateAppointmentItem(appointmentId, { paymentDetails: newPaymentDetails });
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex justify-center items-center">
@@ -114,6 +128,8 @@ const AppointmentList = () => {
         onPriceChange={handlePriceChange}
         onDelete={handleDelete}
         onOpenLaser={handleOpenLaser}
+        paymentMethods={paymentMethods}
+        onPaymentChange={handlePaymentChange}
       />
 
       <ConsumablesModal
