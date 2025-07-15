@@ -129,6 +129,7 @@ const AppointmentList = () => {
         onPriceChange={handlePriceChange}
         onDelete={handleDelete}
         onOpenConsumables={handleOpenConsumables}
+        onOpenPaymentModal={handleOpenPaymentModal}
       />
 
       <LaserTable
