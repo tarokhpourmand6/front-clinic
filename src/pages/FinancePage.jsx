@@ -2,6 +2,7 @@
 import { useState } from "react";
 import InventoryManager from "../components/finance/InventoryManager";
 import LaserPriceManager from "../components/finance/LaserPriceManager";
+import PaymentMethodManager from "../components/PaymentMethodManager"; // ✅ اضافه شده
 
 export default function FinancePage() {
   const [password, setPassword] = useState("");
@@ -14,7 +15,7 @@ export default function FinancePage() {
     } else {
       alert("رمز عبور نادرست است");
     }
-  };
+  }
 
   if (!authenticated) {
     return (
@@ -48,6 +49,9 @@ export default function FinancePage() {
 
       {/* قیمت نواحی لیزر */}
       <LaserPriceManager />
+
+      {/* مدیریت روش‌های پرداخت */}
+      <PaymentMethodManager /> {/* ✅ اضافه‌شده بدون تغییر ساختار */}
     </div>
   );
 }
