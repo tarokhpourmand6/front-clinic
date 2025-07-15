@@ -40,43 +40,48 @@ export default function Patients() {
   const toPersianDigits = (str) => str?.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const persianToEnglishDigits = (str) => str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
-      const cleanedPhone = persianToEnglishDigits(formData.phone).replace(/[^0-9]/g, '');
+  e.preventDefault();
+  try {
+    const persianToEnglishDigits = (str) => str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+    const cleanedPhone = persianToEnglishDigits(formData.phone).replace(/[^0-9]/g, '');
 
-      const payload = { 
-        fullName: `${formData.firstName} ${formData.lastName}`,
-        phone: cleanedPhone,
-        birthDate: formData.birthDate
-          ? new Date(formData.birthDate.year, formData.birthDate.month - 1, formData.birthDate.day).toISOString()
-          : undefined,
-        address: formData.address || '',
-        notes: formData.notes || '',
-      };
-console.log("📤 payload:", payload);
-      if (formData._id) payload._id = formData._id;
+    const payload = { 
+      fullName: `${formData.firstName} ${formData.lastName}`,
+      phone: cleanedPhone,
+      birthDate: formData.birthDate
+        ? new Date(formData.birthDate.year, formData.birthDate.month - 1, formData.birthDate.day).toISOString()
+        : undefined,
+      address: formData.address || '',
+      notes: formData.notes || '',
+    };
 
-      let updatedList = [];
-      if (editIndex !== null && formData._id) {
-        const updated = await updatePatient(formData._id, payload);
-        updatedList = [...patients];
-        updatedList[editIndex] = updated;
-      } else {
-        const created = await createPatient(payload);
-        updatedList = [...patients, created];
-      }
+    if (formData._id) payload._id = formData._id;
 
-      setPatients(updatedList);
-      setSuccess(true);
-      setFormData({ firstName: '', lastName: '', phone: '', birthDate: null, address: '', notes: '' });
-      setEditIndex(null);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      console.error("⛔️ خطا در ذخیره اطلاعات بیمار:", err);
+    let updatedList = [];
+    if (editIndex !== null && formData._id) {
+      const updated = await updatePatient(formData._id, payload);
+      updatedList = [...patients];
+      updatedList[editIndex] = updated;
+    } else {
+      const created = await createPatient(payload);
+      updatedList = [...patients, created];
+    }
+
+    setPatients(updatedList);
+    setSuccess(true);
+    setFormData({ firstName: '', lastName: '', phone: '', birthDate: null, address: '', notes: '' });
+    setEditIndex(null);
+    setTimeout(() => setSuccess(false), 3000);
+  } catch (err) {
+    console.error("⛔️ خطا در ذخیره اطلاعات بیمار:", err);
+
+    if (err.response?.status === 400 && err.response.data?.message?.includes("شماره تلفن")) {
+      alert("⚠️ شماره تلفن وارد شده قبلاً ثبت شده است.");
+    } else {
       alert("⛔️ خطا در ذخیره اطلاعات بیمار");
     }
-  };
+  }
+};
 
   const handleDelete = async (index) => {
     try {
