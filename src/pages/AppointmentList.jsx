@@ -67,6 +67,23 @@ const AppointmentList = () => {
   const handleStatusChange = async (appointmentId, newStatus) => {
     const mapped = newStatus === 'done' ? 'Completed' : newStatus === 'pending' ? 'Scheduled' : 'Canceled';
     await updateAppointmentItem(appointmentId, { status: mapped });
+
+    if (newStatus === 'done') {
+      const appointment = appointments.find((a) => a._id === appointmentId);
+      if (!appointment) return;
+
+      setSelectedAppointmentId(appointmentId);
+
+      if (appointment.type === 'Injection') {
+        setModalOpen(true);
+      } else if (appointment.type === 'Laser') {
+        setLaserModalOpen(true);
+      }
+
+      setSelectedPaymentDetails(appointment.paymentDetails || []);
+      setSelectedInitialPrice(appointment.price || 0);
+      setPaymentModalOpen(true);
+    }
   };
 
   const handlePriceChange = async (appointmentId, val) => {
