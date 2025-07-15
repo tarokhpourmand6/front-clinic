@@ -8,6 +8,7 @@ import InjectionTable from '../components/appointments/InjectionTable';
 import LaserTable from '../components/appointments/LaserTable';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { getPaymentMethods } from '../api/paymentMethodApi';
+import PaymentModal from '../components/appointments/PaymentModal';
 
 const AppointmentList = () => {
   const {
@@ -21,6 +22,9 @@ const AppointmentList = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [laserModalOpen, setLaserModalOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPaymentDetails, setSelectedPaymentDetails] = useState([]);
+  const [selectedInitialPrice, setSelectedInitialPrice] = useState(0);
   const [loading, setLoading] = useState(true);
   const [paymentMethods, setPaymentMethods] = useState([]);
 
@@ -93,6 +97,13 @@ const AppointmentList = () => {
     setLaserModalOpen(true);
   };
 
+  const handleOpenPaymentModal = (appointmentId, paymentDetails, price) => {
+    setSelectedAppointmentId(appointmentId);
+    setSelectedPaymentDetails(paymentDetails);
+    setSelectedInitialPrice(price);
+    setPaymentModalOpen(true);
+  };
+
   const handlePaymentChange = async (appointmentId, newPaymentDetails) => {
     await updateAppointmentItem(appointmentId, { paymentDetails: newPaymentDetails });
   };
@@ -129,7 +140,7 @@ const AppointmentList = () => {
         onDelete={handleDelete}
         onOpenLaser={handleOpenLaser}
         paymentMethods={paymentMethods}
-        onPaymentChange={handlePaymentChange}
+        onOpenPaymentModal={handleOpenPaymentModal}
       />
 
       <ConsumablesModal
@@ -143,6 +154,16 @@ const AppointmentList = () => {
         isOpen={laserModalOpen}
         onClose={() => setLaserModalOpen(false)}
         appointmentId={selectedAppointmentId}
+      />
+
+      <PaymentModal
+        isOpen={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        appointmentId={selectedAppointmentId}
+        paymentDetails={selectedPaymentDetails}
+        initialPrice={selectedInitialPrice}
+        paymentMethods={paymentMethods}
+        onSave={handlePaymentChange}
       />
     </div>
   );

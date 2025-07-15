@@ -12,7 +12,7 @@ const LaserTable = ({
   onDelete,
   onOpenLaser,
   paymentMethods,
-  onPaymentChange
+  onOpenPaymentModal
 }) => {
   const [sortField, setSortField] = useState(null);
   const [sortAsc, setSortAsc] = useState(true);
@@ -34,8 +34,6 @@ const LaserTable = ({
       ? valA.localeCompare(valB, 'fa')
       : valB.localeCompare(valA, 'fa');
   });
-
-  const f2e = (str) => str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
 
   return (
     <div className="mt-8">
@@ -115,52 +113,13 @@ const LaserTable = ({
                   </div>
                 )}
               </td>
-              <td className="border px-2 py-1">
-                <div className="flex flex-wrap gap-1 text-[11px]">
-                  {paymentMethods.map((pm) => {
-                    const item = a.paymentDetails?.find((p) => p.method === pm.name);
-                    return (
-                      <div key={pm.name} className="flex items-center gap-1 border rounded px-2 py-1">
-                        <input
-                          type="checkbox"
-                          checked={!!item}
-                          onChange={(e) => {
-                            const existing = a.paymentDetails || [];
-                            let updated;
-                            if (e.target.checked) {
-                              const isFirst = existing.length === 0;
-                              const thisAmount = isFirst ? Number(a.price || 0) : 0;
-                              updated = [...existing, { method: pm.name, amount: thisAmount }];
-                            } else {
-                              updated = existing.filter((p) => p.method !== pm.name);
-                            }
-                            onPaymentChange(a._id, updated);
-                          }}
-                        />
-                        <span>{pm.name}</span>
-                        {item && (
-                          <input
-                            type="text"
-                            value={toPersianNumber(
-                              (item.amount || '')
-                                .toString()
-                                .replace(/\B(?=(\d{3})+(?!\d))/g, '٬')
-                            )}
-                            onChange={(e) => {
-                              const clean = f2e(e.target.value).replace(/[^0-9]/g, '');
-                              const newList = a.paymentDetails.map((p) =>
-                                p.method === pm.name ? { ...p, amount: Number(clean) } : p
-                              );
-                              onPaymentChange(a._id, newList);
-                            }}
-                            className="border rounded px-1 py-0.5 w-20 text-xs text-right font-vazir"
-                            placeholder="مبلغ"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+              <td className="border px-2 py-1 text-center">
+                <button
+                  onClick={() => onOpenPaymentModal(a._id, a.paymentDetails || [], a.price || 0)}
+                  className="text-blue-600 hover:text-blue-800 underline text-xs"
+                >
+                  مدیریت پرداخت
+                </button>
               </td>
               <td className="border px-2 py-1 flex gap-2 items-center">
                 <button className="text-red-500" onClick={() => onDelete(a._id)}>
