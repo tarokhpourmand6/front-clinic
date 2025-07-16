@@ -15,31 +15,29 @@ const PaymentModal = ({
   const { updateAppointmentItem } = useAppointmentsStore();
 
   useEffect(() => {
-    if (isOpen) {
-      if (paymentDetails?.length > 0) {
-        setLocalDetails(paymentDetails);
-      } else if (paymentMethods.length > 0) {
-        // پیش‌فرض انتخاب اولین روش پرداخت با مبلغ پیشنهادی
-        setLocalDetails([{ method: paymentMethods[0].name, amount: initialPrice || 0 }]);
-      } else {
-        setLocalDetails([]);
-      }
+  if (isOpen) {
+    if (paymentDetails?.length > 0) {
+      setLocalDetails(paymentDetails); // اگر قبلاً پرداختی انجام شده باشه
+    } else {
+      // هیچ گزینه‌ای تیک‌خورده نباشه در ابتدا
+      setLocalDetails([]);
     }
-  }, [isOpen, paymentDetails, paymentMethods, initialPrice]);
+  }
+}, [isOpen, paymentDetails]);
 
   const handleToggleMethod = (method) => {
-    const exists = localDetails.find((p) => p.method === method);
-    if (exists) {
-      setLocalDetails((prev) => prev.filter((p) => p.method !== method));
-    } else {
-      const defaultAmount =
-        localDetails.length === 0 && typeof initialPrice === 'number'
-          ? initialPrice
-          : 0;
-      setLocalDetails((prev) => [...prev, { method, amount: defaultAmount }]);
-    }
-  };
+  const exists = localDetails.find((p) => p.method === method);
+  if (exists) {
+    setLocalDetails((prev) => prev.filter((p) => p.method !== method));
+  } else {
+    const defaultAmount =
+      localDetails.length === 0 && typeof initialPrice === "number"
+        ? initialPrice
+        : 0;
 
+    setLocalDetails((prev) => [...prev, { method, amount: defaultAmount }]);
+  }
+};
   const handleAmountChange = (method, val) => {
     const f2e = (str) => str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
     const cleaned = f2e(val).replace(/[^0-9]/g, "");

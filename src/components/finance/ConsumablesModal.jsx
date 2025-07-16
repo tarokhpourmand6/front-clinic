@@ -91,45 +91,48 @@ const ConsumablesModal = ({
   };
 
   const handleFinalSave = async () => {
-    const cleanedItems = selectedItems.map((i) => ({
-      name: i.name,
-      amount: Number(i.amount || 0),
-    }));
+  const cleanedItems = selectedItems.map((i) => ({
+    name: i.name,
+    amount: Number(i.amount || 0),
+  }));
 
-    if (!appointmentId) {
-      toast.error("⛔️ شناسه نوبت مشخص نیست");
-      return;
-    }
+  if (!appointmentId) {
+    toast.error("⛔️ شناسه نوبت مشخص نیست");
+    return;
+  }
 
-    try {
-      if (!disableInventoryUpdate) {
-        const res = await fetch("https://clinic-crm-backend.onrender.com/api/inventory/update-stock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            previous: Array.isArray(originalItemsRef.current) ? originalItemsRef.current : [],
-            current: cleanedItems,
-          }),
-        });
-
-        if (!res.ok) throw new Error("خطا در بروزرسانی موجودی");
-      }
-
-      await updateAppointmentItem(appointmentId, {
-        consumables: cleanedItems,
-        price: suggestedPrice,
+  try {
+    if (!disableInventoryUpdate) {
+      const res = await fetch("https://clinic-crm-backend.onrender.com/api/inventory/update-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          previous: Array.isArray(originalItemsRef.current) ? originalItemsRef.current : [],
+          current: cleanedItems,
+        }),
       });
 
-      toast.success("✔️ آیتم‌های مصرفی با موفقیت ذخیره شدند");
-      onClose();
-      if (typeof onSave === "function") {
-        onSave(suggestedPrice);
-      }
-    } catch (err) {
-      console.error("⛔️ خطا در ذخیره:", err);
-      toast.error("⛔️ خطا در ذخیره آیتم‌ها");
+      if (!res.ok) throw new Error("خطا در بروزرسانی موجودی");
     }
-  };
+
+    await updateAppointmentItem(appointmentId, {
+      consumables: cleanedItems,
+      price: suggestedPrice,
+    });
+
+    toast.success("✔️ آیتم‌های مصرفی با موفقیت ذخیره شدند");
+    onClose();
+    
+    // ✅ اصلاح این قسمت: ارسال آیتم‌ها و مبلغ
+    if (typeof onSave === "function") {
+      onSave(cleanedItems, suggestedPrice);
+    }
+
+  } catch (err) {
+    console.error("⛔️ خطا در ذخیره:", err);
+    toast.error("⛔️ خطا در ذخیره آیتم‌ها");
+  }
+};
 
   if (!isOpen) return null;
 

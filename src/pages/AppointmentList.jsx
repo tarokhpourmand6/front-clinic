@@ -157,16 +157,15 @@ const AppointmentList = () => {
         onOpenPaymentModal={handleOpenPaymentModal}
       />
 
-      <ConsumablesModal
+  <ConsumablesModal
   isOpen={modalOpen}
   onClose={() => setModalOpen(false)}
   appointmentId={selectedAppointmentId}
   onSave={(items, price) => {
-    const found = appointments.find((a) => a._id === selectedAppointmentId);
-    setSelectedInitialPrice(price);
-    setSelectedPaymentDetails(found?.paymentDetails || []);
+    setSelectedInitialPrice(price);       // مقدار پیشنهادی وارد اولین فیلد پرداخت
+    setSelectedPaymentDetails([]);        // بدون هیچ روش تیک‌خورده
     setSelectedAppointmentId(selectedAppointmentId);
-    setPaymentModalOpen(true);
+    setPaymentModalOpen(true);            // باز کردن مودال پرداخت
     fetchAppointments();
   }}
 />

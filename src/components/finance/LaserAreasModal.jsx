@@ -44,23 +44,22 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal })
   };
 
   const handleSave = async () => {
-    try {
-      await updateAppointmentItem(appointmentId, {
-        laserAreas: selected,
-        price: total,
-      });
-      await fetchAppointments();
-      toast.success("✔️ نواحی لیزر ثبت شد");
-      onClose();
+  try {
+    await updateAppointmentItem(appointmentId, {
+      laserAreas: selected,
+      price: total,
+    });
+    await fetchAppointments();
+    toast.success("✔️ نواحی لیزر ثبت شد");
+    onClose();
 
-      const appointment = appointments.find((a) => a._id === appointmentId);
-      if (appointment && typeof onOpenPaymentModal === "function") {
-        onOpenPaymentModal(appointmentId, appointment.paymentDetails || [], total);
-      }
-    } catch (err) {
-      toast.error("⛔️ خطا در ذخیره نواحی");
+    if (typeof onOpenPaymentModal === "function") {
+      onOpenPaymentModal(appointmentId, [], total); // ⬅️ آرایه خالی برای جلوگیری از تیک‌خوردن پیش‌فرض
     }
-  };
+  } catch (err) {
+    toast.error("⛔️ خطا در ذخیره نواحی");
+  }
+};
 
   if (!isOpen) return null;
 
