@@ -126,12 +126,12 @@ const LaserTable = ({
                   حذف
                 </button>
                 <button
-                  title="ثبت نواحی لیزر"
-                  onClick={() => onOpenLaser(a._id)}
-                  className="text-sky-600 hover:text-sky-800"
-                >
-                  <Plus size={18} />
-                </button>
+  title="ثبت نواحی لیزر"
+  onClick={() => onOpenLaser(a._id, a.price || 0)}
+  className="text-sky-600 hover:text-sky-800"
+>
+  <Plus size={18} />
+</button>
               </td>
             </tr>
           ))}

@@ -158,25 +158,32 @@ const AppointmentList = () => {
       />
 
       <ConsumablesModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        appointmentId={selectedAppointmentId}
-        onSave={(items, price) => {
-          fetchAppointments();
-          setSelectedInitialPrice(price);
-          setPaymentModalOpen(true);
-        }}
-      />
+  isOpen={modalOpen}
+  onClose={() => setModalOpen(false)}
+  appointmentId={selectedAppointmentId}
+  onSave={(items, price) => {
+    const found = appointments.find((a) => a._id === selectedAppointmentId);
+    setSelectedInitialPrice(price);
+    setSelectedPaymentDetails(found?.paymentDetails || []);
+    setSelectedAppointmentId(selectedAppointmentId);
+    setPaymentModalOpen(true);
+    fetchAppointments();
+  }}
+/>
 
       <LaserAreasModal
-        isOpen={laserModalOpen}
-        onClose={() => setLaserModalOpen(false)}
-        appointmentId={selectedAppointmentId}
-        onOpenPaymentModal={(price) => {
-          setSelectedInitialPrice(price);
-          setPaymentModalOpen(true);
-        }}
-      />
+  isOpen={laserModalOpen}
+  onClose={() => setLaserModalOpen(false)}
+  appointmentId={selectedAppointmentId}
+  onOpenPaymentModal={(price) => {
+    const found = appointments.find((a) => a._id === selectedAppointmentId);
+    setSelectedInitialPrice(price);
+    setSelectedPaymentDetails(found?.paymentDetails || []);
+    setSelectedAppointmentId(selectedAppointmentId);
+    setPaymentModalOpen(true);
+    fetchAppointments();
+  }}
+/>
 
       <PaymentModal
         isOpen={paymentModalOpen}

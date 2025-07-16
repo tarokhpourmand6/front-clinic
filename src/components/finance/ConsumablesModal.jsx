@@ -9,7 +9,6 @@ const ConsumablesModal = ({
   appointmentId,
   disableInventoryUpdate = false,
   onSave,
-  openPaymentModal,
 }) => {
   const { appointments, updateAppointmentItem } = useAppointmentsStore();
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -48,7 +47,7 @@ const ConsumablesModal = ({
       if (appointmentId) {
         const appointment = appointments.find((a) => a._id === appointmentId);
         const isNewlyCreated = appointment?.createdAt === appointment?.updatedAt;
-        originalItemsRef.current = isNewlyCreated ? [] : (cleaned || []);
+        originalItemsRef.current = isNewlyCreated ? [] : cleaned || [];
       }
 
       calculateSuggestedPrice(cleaned, data);
@@ -97,13 +96,6 @@ const ConsumablesModal = ({
       amount: Number(i.amount || 0),
     }));
 
-    if (!appointmentId && typeof onSave === "function") {
-      onSave(cleanedItems, suggestedPrice);
-      onClose();
-      if (typeof openPaymentModal === "function") openPaymentModal();
-      return;
-    }
-
     if (!appointmentId) {
       toast.error("⛔️ شناسه نوبت مشخص نیست");
       return;
@@ -130,7 +122,9 @@ const ConsumablesModal = ({
 
       toast.success("✔️ آیتم‌های مصرفی با موفقیت ذخیره شدند");
       onClose();
-      if (typeof openPaymentModal === "function") openPaymentModal();
+      if (typeof onSave === "function") {
+        onSave(suggestedPrice);
+      }
     } catch (err) {
       console.error("⛔️ خطا در ذخیره:", err);
       toast.error("⛔️ خطا در ذخیره آیتم‌ها");

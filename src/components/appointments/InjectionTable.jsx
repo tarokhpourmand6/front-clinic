@@ -112,12 +112,12 @@ const InjectionTable = ({
               <td className="border px-2 py-1 flex gap-2 items-center">
                 <button className="text-red-500" onClick={() => onDelete(a._id)}>حذف</button>
                 <button
-                  title="ثبت آیتم مصرفی"
-                  onClick={() => onOpenConsumables(a._id)}
-                  className="text-emerald-600 hover:text-emerald-800"
-                >
-                  <Plus size={18} />
-                </button>
+  title="ثبت آیتم مصرفی"
+  onClick={() => onOpenConsumables(appointmentId, price)
+  className="text-emerald-600 hover:text-emerald-800"
+>
+  <Plus size={18} />
+</button>
               </td>
             </tr>
           ))}

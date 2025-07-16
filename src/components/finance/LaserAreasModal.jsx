@@ -54,7 +54,7 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal })
       onClose();
 
       const appointment = appointments.find((a) => a._id === appointmentId);
-      if (appointment) {
+      if (appointment && typeof onOpenPaymentModal === "function") {
         onOpenPaymentModal(appointmentId, appointment.paymentDetails || [], total);
       }
     } catch (err) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toPersianNumber } from "../../utils/number";
+import useAppointmentsStore from "../../store/useAppointmentsStore";
 
 const PaymentModal = ({
   isOpen,
@@ -11,12 +12,20 @@ const PaymentModal = ({
   initialPrice = 0,
 }) => {
   const [localDetails, setLocalDetails] = useState([]);
+  const { updateAppointmentItem } = useAppointmentsStore();
 
   useEffect(() => {
     if (isOpen) {
-      setLocalDetails(paymentDetails);
+      if (paymentDetails?.length > 0) {
+        setLocalDetails(paymentDetails);
+      } else if (paymentMethods.length > 0) {
+        // پیش‌فرض انتخاب اولین روش پرداخت با مبلغ پیشنهادی
+        setLocalDetails([{ method: paymentMethods[0].name, amount: initialPrice || 0 }]);
+      } else {
+        setLocalDetails([]);
+      }
     }
-  }, [isOpen, paymentDetails]);
+  }, [isOpen, paymentDetails, paymentMethods, initialPrice]);
 
   const handleToggleMethod = (method) => {
     const exists = localDetails.find((p) => p.method === method);
@@ -39,8 +48,17 @@ const PaymentModal = ({
     );
   };
 
-  const handleSave = () => {
-    onSave(appointmentId, localDetails);
+  const handleSave = async () => {
+    const total = localDetails.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    await updateAppointmentItem(appointmentId, {
+      paymentDetails: localDetails,
+      price: total,
+    });
+
+    if (typeof onSave === "function") {
+      onSave(appointmentId, localDetails);
+    }
+
     onClose();
   };
 
@@ -77,8 +95,15 @@ const PaymentModal = ({
           })}
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-1 text-gray-600 hover:text-black">بستن</button>
-          <button onClick={handleSave} className="px-4 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">ذخیره</button>
+          <button onClick={onClose} className="px-4 py-1 text-gray-600 hover:text-black">
+            بستن
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+          >
+            ذخیره
+          </button>
         </div>
       </div>
     </div>
