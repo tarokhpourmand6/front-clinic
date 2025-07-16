@@ -113,7 +113,7 @@ const InjectionTable = ({
                 <button className="text-red-500" onClick={() => onDelete(a._id)}>حذف</button>
                 <button
   title="ثبت آیتم مصرفی"
-  onClick={() => onOpenConsumables(appointmentId, price)
+  onClick={() => onOpenConsumables(a._id, a.price)}
   className="text-emerald-600 hover:text-emerald-800"
 >
   <Plus size={18} />
