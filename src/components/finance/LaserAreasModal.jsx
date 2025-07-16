@@ -3,12 +3,12 @@ import { getLaserPrices } from "../../api/laserPrice";
 import useAppointmentsStore from "../../store/useAppointmentsStore";
 import { toast } from "react-toastify";
 
-const LaserAreasModal = ({ isOpen, onClose, appointmentId }) => {
+const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal }) => {
   const [laserPrices, setLaserPrices] = useState([]);
   const [gender, setGender] = useState("female");
   const [selected, setSelected] = useState([]);
   const [total, setTotal] = useState(0);
-  const { updateAppointmentItem, fetchAppointments } = useAppointmentsStore();
+  const { updateAppointmentItem, fetchAppointments, appointments } = useAppointmentsStore();
 
   useEffect(() => {
     if (isOpen) {
@@ -52,6 +52,11 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId }) => {
       await fetchAppointments();
       toast.success("✔️ نواحی لیزر ثبت شد");
       onClose();
+
+      const appointment = appointments.find((a) => a._id === appointmentId);
+      if (appointment) {
+        onOpenPaymentModal(appointmentId, appointment.paymentDetails || [], total);
+      }
     } catch (err) {
       toast.error("⛔️ خطا در ذخیره نواحی");
     }
@@ -62,8 +67,8 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId }) => {
   const filtered = laserPrices.filter((item) => item.gender === gender);
 
   return (
-   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999990]">
-  <div className="bg-white rounded-lg p-6 shadow-lg w-full max-w-4xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999990]">
+      <div className="bg-white rounded-lg p-6 shadow-lg w-full max-w-4xl">
         <h2 className="text-lg font-bold mb-4">انتخاب نواحی لیزر</h2>
 
         <div className="mb-4">
@@ -100,8 +105,7 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId }) => {
 
         {total > 0 && (
           <div className="text-sm text-gray-700 mb-3">
-            💰 مبلغ پیشنهادی:{" "}
-            <strong>{total.toLocaleString("fa-IR")} تومان</strong>
+            💰 مبلغ پیشنهادی: <strong>{total.toLocaleString("fa-IR")} تومان</strong>
           </div>
         )}
 

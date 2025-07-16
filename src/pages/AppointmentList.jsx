@@ -79,10 +79,6 @@ const AppointmentList = () => {
       } else if (appointment.type === 'Laser') {
         setLaserModalOpen(true);
       }
-
-      setSelectedPaymentDetails(appointment.paymentDetails || []);
-      setSelectedInitialPrice(appointment.price || 0);
-      setPaymentModalOpen(true);
     }
   };
 
@@ -165,13 +161,21 @@ const AppointmentList = () => {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         appointmentId={selectedAppointmentId}
-        onSave={fetchAppointments}
+        onSave={(items, price) => {
+          fetchAppointments();
+          setSelectedInitialPrice(price);
+          setPaymentModalOpen(true);
+        }}
       />
 
       <LaserAreasModal
         isOpen={laserModalOpen}
         onClose={() => setLaserModalOpen(false)}
         appointmentId={selectedAppointmentId}
+        onOpenPaymentModal={(price) => {
+          setSelectedInitialPrice(price);
+          setPaymentModalOpen(true);
+        }}
       />
 
       <PaymentModal

@@ -9,6 +9,7 @@ const ConsumablesModal = ({
   appointmentId,
   disableInventoryUpdate = false,
   onSave,
+  openPaymentModal,
 }) => {
   const { appointments, updateAppointmentItem } = useAppointmentsStore();
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -44,18 +45,15 @@ const ConsumablesModal = ({
 
       setSelectedItems(cleaned);
 
-      // فقط اگر از دیتابیس اومده باشه، ذخیره کن
       if (appointmentId) {
-  const appointment = appointments.find((a) => a._id === appointmentId);
+        const appointment = appointments.find((a) => a._id === appointmentId);
+        const isNewlyCreated = appointment?.createdAt === appointment?.updatedAt;
+        originalItemsRef.current = isNewlyCreated ? [] : (cleaned || []);
+      }
 
-  // اگر نوبت تازه ایجاد شده باشه (یعنی createdAt و updatedAt یکی هستند) یا آیتمی توش از قبل بوده ولی هنوز از انبار کم نشده
-  const isNewlyCreated = appointment?.createdAt === appointment?.updatedAt;
-
-  originalItemsRef.current = isNewlyCreated ? [] : (cleaned || []);
-}
       calculateSuggestedPrice(cleaned, data);
     } catch (err) {
-      toast.error("\u26D4\uFE0F \u062E\u0637\u0627 \u062F\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0645\u0648\u062C\u0648\u062F\u06CC");
+      toast.error("⛔️ خطا در دریافت موجودی");
       console.error(err);
     }
   };
@@ -102,11 +100,12 @@ const ConsumablesModal = ({
     if (!appointmentId && typeof onSave === "function") {
       onSave(cleanedItems, suggestedPrice);
       onClose();
+      if (typeof openPaymentModal === "function") openPaymentModal();
       return;
     }
 
     if (!appointmentId) {
-      toast.error("\u26D4\uFE0F \u0634\u0646\u0627\u0633\u0647 \u0646\u0648\u0628\u062A \u0645\u0634\u062E\u0635 \u0646\u06CC\u0633\u062A");
+      toast.error("⛔️ شناسه نوبت مشخص نیست");
       return;
     }
 
@@ -129,11 +128,12 @@ const ConsumablesModal = ({
         price: suggestedPrice,
       });
 
-      toast.success("\u2714\uFE0F \u0622\u06CC\u062A\u0645\u200C\u0647\u0627\u06CC \u0645\u0635\u0631\u0641\u06CC \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0630\u062E\u06CC\u0631\u0647 \u0634\u062F\u0646\u062F");
+      toast.success("✔️ آیتم‌های مصرفی با موفقیت ذخیره شدند");
       onClose();
+      if (typeof openPaymentModal === "function") openPaymentModal();
     } catch (err) {
-      console.error("\u26D4\uFE0F \u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647:", err);
-      toast.error("\u26D4\uFE0F \u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u0622\u06CC\u062A\u0645\u200C\u0647\u0627");
+      console.error("⛔️ خطا در ذخیره:", err);
+      toast.error("⛔️ خطا در ذخیره آیتم‌ها");
     }
   };
 
