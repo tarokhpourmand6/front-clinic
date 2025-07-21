@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import { getToday } from '../components/DatePicker/utils/getToday';
 import { motion } from 'framer-motion';
 import { getAllProducts } from '../api/inventory';
-import { getPatients } from '../api/patients';
 import { getAppointments } from '../api/appointments';
+import { getPatientsCount } from '../api/patients'; // ⬅️ تابع جدید برای دریافت فقط تعداد بیماران
 import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function Dashboard() {
-  const [patients, setPatients] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [inventory, setInventory] = useState([]);
 
@@ -21,17 +20,21 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const fetchedPatients = await getPatients();
-        const fetchedAppointments = await getAppointments();
-        const fetchedInventory = await getAllProducts();
 
-        const patientsArray = Array.isArray(fetchedPatients) ? fetchedPatients : fetchedPatients.data;
-        const appointmentsArray = Array.isArray(fetchedAppointments) ? fetchedAppointments : fetchedAppointments.data;
+        const [count, fetchedAppointments, fetchedInventory] = await Promise.all([
+          getPatientsCount(),
+          getAppointments(),
+          getAllProducts(),
+        ]);
 
-        setPatients(patientsArray);
+        setPatientsCount(count);
+
+        const appointmentsArray = Array.isArray(fetchedAppointments)
+          ? fetchedAppointments
+          : fetchedAppointments.data;
+
         setAppointments(appointmentsArray);
         setInventory(fetchedInventory);
-        setPatientsCount(patientsArray.length);
 
         const today = getToday();
 
@@ -129,9 +132,7 @@ export default function Dashboard() {
                   className="border rounded-md p-4 bg-gray-50 hover:bg-gray-100 transition"
                 >
                   <div className="font-semibold text-emerald-700">
-                    {appt?.patientId?.fullName ||
-                      patients.find((p) => p._id === appt.patientId)?.fullName ||
-                      'بیمار ناشناس'}
+                    {appt?.patientId?.fullName || 'بیمار ناشناس'}
                   </div>
                   <div className="text-sm text-gray-600">
                     {appt.type === 'Injection'

@@ -70,3 +70,7 @@ export const updatePatientPhoto = async (patientId, type, data) => {
   });
   return res.data.data;
 };
+export const getPatientsCount = async () => {
+  const res = await api.get('/patients/count');
+  return res.data.data.total;
+};
