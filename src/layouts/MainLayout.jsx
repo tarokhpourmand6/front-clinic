@@ -1,14 +1,18 @@
 import { Link, useLocation } from "react-router-dom";
 import logo from "../assets/logo-green.png";
-import { Home, Users, CalendarDays, PlusCircle, Wallet, LogOut } from "lucide-react";
+import { Home, Users, CalendarDays, PlusCircle, Wallet, LogOut, MessageSquare } from "lucide-react";
 
 export default function MainLayout({ children }) {
+  const location = useLocation();
   const handleLogout = () => {
     if (window.confirm("آیا مطمئن هستید که می‌خواهید خارج شوید؟")) {
       localStorage.removeItem("token");
       window.location.href = "/";
     }
   };
+
+  const isActive = (path) =>
+    location.pathname === path ? "bg-white/20" : "hover:bg-white/10";
 
   return (
     <div className="flex min-h-screen font-vazir bg-gray-50">
@@ -27,6 +31,13 @@ export default function MainLayout({ children }) {
           <Link to="/finance" className="block px-4 py-2 rounded hover:bg-white/10">بخش مالی</Link>
           <Link to="/stats" className="block px-4 py-2 rounded hover:bg-white/10">آمار و گزارش‌ها</Link>
           <Link to="/old-appointments" className="block px-4 py-2 rounded hover:bg-white/10">نوبت‌های قدیمی</Link>
+          {/* ✅ آیتم جدید: مدیریت پیامک‌ها */}
+          <Link
+            to="/sms"
+            className={`block px-4 py-2 rounded ${isActive("/sms")}`}
+          >
+            مدیریت پیامک‌ها
+          </Link>
         </nav>
 
         <div className="text-center text-xs text-white/60 py-4 border-t border-white/20">
@@ -72,6 +83,11 @@ export default function MainLayout({ children }) {
           <Link to="/appointments/new" className="flex flex-col items-center">
             <PlusCircle size={20} />
             <span>نوبتدهی</span>
+          </Link>
+          {/* ✅ میانبر موبایل: SMS */}
+          <Link to="/sms" className="flex flex-col items-center text-emerald-600">
+            <MessageSquare size={20} />
+            <span>SMS</span>
           </Link>
           <button onClick={handleLogout} className="flex flex-col items-center text-red-500">
             <LogOut size={20} />

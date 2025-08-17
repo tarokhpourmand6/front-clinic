@@ -9,6 +9,7 @@ import AppointmentList from './pages/AppointmentList';
 import FinancePage from './pages/FinancePage';
 import StatsPage from './pages/Statspage';
 import OldAppointments from './pages/OldAppointments';
+import SmsManager from './pages/SmsManager';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
@@ -23,6 +24,8 @@ function App() {
         <Routes>
           {/* صفحه ورود */}
           <Route path="/login" element={<Login />} />
+
+
 
           {/* مسیرهای محافظت‌شده داخل Layout */}
           <Route
@@ -123,6 +126,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+<Route
+  path="/sms"
+  element={
+    <ProtectedRoute>
+      <MainLayout>
+        <SmsManager />
+      </MainLayout>
+    </ProtectedRoute>
+  }
+/>
 
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
