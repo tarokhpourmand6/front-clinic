@@ -1,36 +1,57 @@
 // src/api/patients.js
 import api from './axios';
 
-// نرمال‌سازی خروجی /patients به یک آرایه
+// --- Helpers -------------------------------------------------
 const normalizeList = (payload) => {
-  // case 1: آرایه مستقیم
-  if (Array.isArray(payload)) return payload;
-
-  // case 2: { data: [] }
-  if (Array.isArray(payload?.data)) return payload.data;
-
-  // case 3: { patients: [] }
-  if (Array.isArray(payload?.patients)) return payload.patients;
-
-  // case 4: { data: { items: [] } }
-  if (Array.isArray(payload?.data?.items)) return payload.data.items;
-
-  // case 5: { items: [] }
-  if (Array.isArray(payload?.items)) return payload.items;
-
+  if (Array.isArray(payload)) return payload;                 // []
+  if (Array.isArray(payload?.data)) return payload.data;      // { data: [] }
+  if (Array.isArray(payload?.patients)) return payload.patients; // { patients: [] }
+  if (Array.isArray(payload?.data?.items)) return payload.data.items; // { data:{items:[]} }
+  if (Array.isArray(payload?.items)) return payload.items;    // { items: [] }
   return [];
 };
 
+const buildParams = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+
+// --- APIs ----------------------------------------------------
 export const getPatients = async (params = {}) => {
-  // پیش‌فرض‌های امن؛ اگر limit نگفتید 50 بگذاریم
-  const { page = 1, limit = 50, q, hasPhone } = params;
+  // پیش‌فرض امن: صفحه 1، 50 تا (اگر limit دادی همان را می‌فرستیم)
+  const {
+    page = 1,
+    limit = 50,
+    q,
+    hasPhone,
+    // هر فیلتر دیگری که بعداً خواستی اضافه کن (مثلاً appointmentFrom/To, birthdayFrom/To, tag, ...)
+    appointmentFrom,
+    appointmentTo,
+    birthdayFrom,
+    birthdayTo,
+    tag,
+  } = params;
 
-  const res = await api.get('/patients', {
-    params: { page, limit, q, hasPhone },
-  });
-
-  return normalizeList(res.data);
+  try {
+    const res = await api.get('/patients', {
+      params: buildParams({
+        page,
+        limit,
+        q,
+        hasPhone,
+        appointmentFrom,
+        appointmentTo,
+        birthdayFrom,
+        birthdayTo,
+        tag,
+      }),
+    });
+    return normalizeList(res.data);
+  } catch {
+    return []; // نذار UI خراب بشه
+  }
 };
+
+// سازگاری با کدی که قبلاً getPatientsArray را ایمپورت می‌کرد
+export const getPatientsArray = (params) => getPatients(params);
 
 export const getPatientByPhone = async (phone) => {
   const res = await api.get(`/patients/by-phone/${phone}`);
@@ -97,6 +118,5 @@ export const updatePatientPhoto = async (patientId, type, data) => {
 
 export const getPatientsCount = async () => {
   const res = await api.get('/patients/count');
-  // هم {data:{total}} و هم {total} را پوشش می‌دهیم
   return res?.data?.data?.total ?? res?.data?.total ?? 0;
 };
