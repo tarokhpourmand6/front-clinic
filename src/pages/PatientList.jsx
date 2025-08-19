@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatePicker from "../components/DatePicker/DatePicker.jsx";
 import '../components/DatePicker/DatePicker.css';
@@ -20,11 +20,17 @@ export default function Patients() {
 
   const [success, setSuccess] = useState(false);
   const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  // --- جستجو (debounce) + صفحه‌بندی ---
+  // لود اولیه‌ی صفحه
+  const [loading, setLoading] = useState(true);
+  // فچ‌های بعدی (سرچ/صفحه‌بندی) بدون قفل کردن کل صفحه
+  const [isFetching, setIsFetching] = useState(false);
+
+  // سرچ با debounce
   const [typedQuery, setTypedQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // صفحه‌بندی
   const [page, setPage]   = useState(1);
   const [limit, setLimit] = useState(50);
   const [total, setTotal] = useState(0);
@@ -34,32 +40,44 @@ export default function Patients() {
   const [filterBirthYear, setFilterBirthYear] = useState('');
   const [filterLastService, setFilterLastService] = useState('');
 
-  // debounce سرچ
+  // AbortController برای کنسل کردن درخواست‌های قدیمی
+  const abortRef = useRef(null);
+
+  // helpers
+  const toPersianDigits = (str) => String(str || '').replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+  const toEnglishDigits = (str) => String(str || '').replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+  const normalize = (s='') => toEnglishDigits(String(s).toLowerCase().trim());
+
+  // debounce سرچ (حداقل 2 کاراکتر؛ کمتر از آن = بدون q)
   useEffect(() => {
     const t = setTimeout(() => {
-      setSearchQuery(typedQuery.trim());
+      const q = typedQuery.trim();
+      setSearchQuery(q.length >= 2 ? q : '');
       setPage(1);
     }, 400);
     return () => clearTimeout(t);
   }, [typedQuery]);
 
-  const toPersianDigits = (str) => String(str || '').replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
-  const toEnglishDigits = (str) => String(str || '').replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
-  const normalize = (s='') => toEnglishDigits(String(s).toLowerCase().trim());
-
-  const fetchPatientsWithLastService = async () => {
+  const fetchPatientsWithLastService = async ({ initial = false } = {}) => {
     try {
-      setLoading(true);
+      if (initial) setLoading(true);
+      else setIsFetching(true);
 
-      // دریافت لیست بیماران با صفحه/لیمیت/سرچ سروری
-      const res = await getPatients({ page, limit, q: searchQuery || undefined });
+      // اگر q داریم، برای پوشش کل نتایج limit را موقتا بزرگ‌تر کن
+      const effectiveLimit = searchQuery ? Math.max(limit, 1000) : limit;
+
+      // کنسل درخواست قبلی
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+
+      const res = await getPatients({ page: searchQuery ? 1 : page, limit: effectiveLimit, q: searchQuery || undefined });
       const data = Array.isArray(res) ? res : res?.data ?? [];
 
-      // تعداد کل رکوردها (در صورت امکان بهتر است count فیلترشده‌ی q را از سرور بگیری)
+      // count کلی (اگر سرور count با q را پشتیبانی می‌کند، بهتر است همان را برگردانید)
       const cnt = await getPatientsCount();
       setTotal(Number(cnt || 0));
 
-      // دریافت نوبت‌ها برای آخرین خدمت
+      // نوبت‌ها برای آخرین خدمت
       const appointments = await getAppointments();
       const lastServices = {};
       (appointments || []).forEach((a) => {
@@ -85,27 +103,36 @@ export default function Patients() {
 
       setPatients(updatedPatients);
     } catch (err) {
-      console.error("⛔️ خطا در دریافت بیماران یا نوبت‌ها:", err);
-      setPatients([]);
+      if (err?.name !== 'AbortError') {
+        console.error("⛔️ خطا در دریافت بیماران یا نوبت‌ها:", err);
+        // اگر فچ شکست خورد، داده فعلی جدول را نگه داریم
+        if (initial) setPatients([]);
+      }
     } finally {
-      setLoading(false);
+      if (initial) setLoading(false);
+      setIsFetching(false);
     }
   };
 
+  // لود اولیه
   useEffect(() => {
-    fetchPatientsWithLastService();
+    fetchPatientsWithLastService({ initial: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // فچ روی تغییر صفحه/لیمیت/سرچ
+  useEffect(() => {
+    // از لود اولیه که گذشتیم:
+    if (!loading) fetchPatientsWithLastService();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, searchQuery]);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const cleanedPhone = toEnglishDigits(formData.phone).replace(/[^0-9]/g, '');
-
     const payload = {
       fullName: `${formData.firstName} ${formData.lastName}`.trim(),
       phone: cleanedPhone,
@@ -129,14 +156,7 @@ export default function Patients() {
 
       await fetchPatientsWithLastService();
       setSuccess(true);
-      setFormData({
-        firstName: '',
-        lastName: '',
-        phone: '',
-        birthDate: null,
-        address: '',
-        notes: '',
-      });
+      setFormData({ firstName: '', lastName: '', phone: '', birthDate: null, address: '', notes: '' });
       setEditIndex(null);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
@@ -174,11 +194,7 @@ export default function Patients() {
     let birthDateObj = null;
     if (selected.birthDate) {
       const date = new Date(selected.birthDate);
-      birthDateObj = {
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-        day: date.getDate(),
-      };
+      birthDateObj = { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
     }
 
     setFormData({
@@ -196,18 +212,12 @@ export default function Patients() {
 
   const filteredPatients = patients.filter((p) => {
     const fullName = (p.fullName || `${p.firstName || ''} ${p.lastName || ''}`).trim();
-    const matchesQuery =
-      !searchQuery ||
-      normalize(fullName).includes(normalize(searchQuery)) ||
-      normalize(p.phone || '').includes(normalize(searchQuery));
-
     const matchesAddress = !filterAddress || normalize(p.address || '').includes(normalize(filterAddress));
     const matchesBirthYear = filterBirthYear
       ? (p.birthDate ? String(new Date(p.birthDate).getFullYear()).includes(normalize(filterBirthYear)) : false)
       : true;
     const matchesService = !filterLastService || normalize(p.lastService || '').includes(normalize(filterLastService));
-
-    return matchesQuery && matchesAddress && matchesBirthYear && matchesService;
+    return matchesAddress && matchesBirthYear && matchesService;
   });
 
   const formatDate = (date) => {
@@ -235,43 +245,32 @@ export default function Patients() {
         ← بازگشت به داشبورد
       </button>
 
-      <div className="bg-white border-t-4 border-brand shadow-md rounded-xl p-3 text-right mb-4 w-full max-w-md mx-auto">
+      <div className="bg-white border-t-4 border-brand shadow-md rounded-xl p-3 text-right mb-2 w-full max-w-md mx-auto">
         <h1 className="text-lg font-bold text-gray-800">
           {editIndex !== null ? '✏️ ویرایش بیمار' : '➕ ثبت بیمار جدید'}
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white shadow-xl rounded-xl p-6 بorder-t-4 border-brand w-full max-w-md mx-auto">
+      {/* نوار وضعیت کوچک موقع جستجو/جابجایی صفحه */}
+      {isFetching && (
+        <div className="w-full max-w-md mx-auto text-xs text-gray-500 mb-3">
+          در حال به‌روزرسانی لیست…
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="bg-white shadow-xl rounded-xl p-6 border-t-4 border-brand w-full max-w-md mx-auto">
         <div className="space-y-4 text-right">
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">نام:</label>
-            <input
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">نام خانوادگی:</label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">شماره تماس:</label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">تاریخ تولد (شمسی):</label>
@@ -289,37 +288,18 @@ export default function Patients() {
           </div>
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">آدرس:</label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <input type="text" name="address" value={formData.address} onChange={handleChange} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="flex items-start gap-4">
             <label className="w-32 text-sm font-medium mt-2">توضیحات:</label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows={3}
-              className="flex-1 border px-3 py-2 rounded-md text-sm"
-            />
+            <textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className="flex-1 border px-3 py-2 rounded-md text-sm" />
           </div>
           <div className="text-left mt-4">
-            <button
-              type="submit"
-              className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition text-sm"
-            >
+            <button type="submit" className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition text-sm">
               {editIndex !== null ? 'ذخیره ویرایش' : 'ثبت بیمار'}
             </button>
           </div>
-          {success && (
-            <p className="text-green-600 text-sm mt-2 text-center">
-              ✅ اطلاعات با موفقیت ذخیره شد!
-            </p>
-          )}
+          {success && <p className="text-green-600 text-sm mt-2 text-center">✅ اطلاعات با موفقیت ذخیره شد!</p>}
         </div>
       </form>
 
@@ -327,7 +307,7 @@ export default function Patients() {
         <h2 className="text-lg font-bold mb-4 text-emerald-800">📋 لیست بیماران</h2>
         <input
           type="text"
-          placeholder="جستجو بر اساس نام، نام خانوادگی یا شماره"
+          placeholder="جستجو بر اساس نام، نام خانوادگی یا شماره (حداقل ۲ کاراکتر)"
           value={typedQuery}
           onChange={(e) => setTypedQuery(e.target.value)}
           className="w-full mb-4 px-4 py-2 border border-gray-300 rounded-md text-sm shadow-sm"
@@ -337,6 +317,7 @@ export default function Patients() {
           <input type="text" placeholder="فیلتر بر اساس سال تولد" value={filterBirthYear} onChange={(e) => setFilterBirthYear(e.target.value)} className="px-3 py-2 border rounded text-sm" />
           <input type="text" placeholder="فیلتر بر اساس آخرین خدمت" value={filterLastService} onChange={(e) => setFilterLastService(e.target.value)} className="px-3 py-2 border rounded text-sm" />
         </div>
+
         <div className="overflow-x-auto rounded-xl shadow-md bg-white border border-gray-100">
           <table className="min-w-full text-sm text-right font-vazir">
             <thead className="bg-brand text-white">
@@ -356,11 +337,10 @@ export default function Patients() {
                   <td className="px-4 py-2 text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => navigate(`/patients/${patient.phone}`)}>{patient.fullName}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{toPersianDigits(patient.phone)}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
-                    {patient.birthDate ? formatDate({
-                      year: new Date(patient.birthDate).getFullYear(),
-                      month: new Date(patient.birthDate).getMonth() + 1,
-                      day: new Date(patient.birthDate).getDate()
-                    }) : '-'}
+                    {patient.birthDate ? (() => {
+                      const d = new Date(patient.birthDate);
+                      return formatDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+                    })() : '-'}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">{patient.address || '-'}</td>
                   <td className="px-4 py-2">{patient.notes || '-'}</td>

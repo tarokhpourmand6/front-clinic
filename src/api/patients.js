@@ -4,14 +4,10 @@ import api from './axios';
 /* ---------- helpers ---------- */
 
 // اولین آرایه‌ی «محتملِ لیست» را در هر عمقی برمی‌گرداند.
-// اگر چند آرایه هست، اولویتش با آرایه‌های شامل آبجکت‌های دارای _id یا phone یا fullName است.
 const deepFindFirstList = (obj) => {
   if (!obj || typeof obj !== 'object') return [];
-
-  // اگر خودش آرایه است
   if (Array.isArray(obj)) return obj;
 
-  // صف برای BFS
   const q = [obj];
   while (q.length) {
     const cur = q.shift();
@@ -25,7 +21,6 @@ const deepFindFirstList = (obj) => {
     // 2) هر کلید دیگر که آرایه باشد
     for (const v of Object.values(cur)) {
       if (Array.isArray(v)) {
-        // بررسی کیفیت آرایه
         const looksLikePatients = v.some(
           (it) => it && typeof it === 'object' && (it._id || it.phone || it.fullName)
         );
@@ -44,11 +39,10 @@ const buildParams = (obj) =>
     Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== '')
   );
 
-/* ---------- APIs ---------- */
+/* ---------- core APIs (تک صفحه) ---------- */
 
-// لیست بیماران
+// لیست بیماران (صفحه‌ای)
 export const getPatients = async (params = {}) => {
-  // پیش‌فرض‌های امن
   const {
     page = 1,
     limit = 50,
@@ -76,22 +70,82 @@ export const getPatients = async (params = {}) => {
       }),
     });
 
-    // حالت‌های رایج سریع
     const d = res?.data;
-    if (Array.isArray(d)) return d;                  // []
-    if (Array.isArray(d?.data)) return d.data;       // { data: [] }
-
-    // حالت عمومی/عمیق
-    return deepFindFirstList(d);
-  } catch (err) {
-    // اگر احراز هویت مشکل داشته باشد، برنگرداندن آرایه خالی باعث می‌شود صفحه بالا بیاید
-    // و بتوانی از طریق Network جزئیات را ببینی.
+    if (Array.isArray(d)) return d;            // []
+    if (Array.isArray(d?.data)) return d.data; // { data: [] }
+    return deepFindFirstList(d);               // حالت‌های عمومی/تو در تو
+  } catch {
     return [];
   }
 };
 
 // برای سازگاری با ایمپورت‌های قدیمی
 export const getPatientsArray = (params) => getPatients(params);
+
+/* ---------- helper: همه صفحات ---------- */
+
+// همه‌ی صفحات را می‌خواند تا خالی شود یا به maxPages برسد
+export const getAllPatients = async (
+  params = {},
+  options = {}
+) => {
+  // پارامترهای فیلتر/جستجو سمت سرور
+  const {
+    q,
+    hasPhone,
+    appointmentFrom,
+    appointmentTo,
+    birthdayFrom,
+    birthdayTo,
+    tag,
+  } = params;
+
+  // تنظیمات پیمایش
+  const {
+    limit = 200,     // اندازه‌ی هر صفحه (برای سرعت بیشتر از 50 بالاتره)
+    maxPages = 1000, // سقف ایمنی
+    dedupeBy = '_id' // معیار یکتاسازی: '_id' یا 'phone'
+  } = options;
+
+  const outMap = new Map(); // برای حذف رکوردهای تکراری
+  let page = 1;
+
+  while (page <= maxPages) {
+    const pageItems = await getPatients({
+      page,
+      limit,
+      q,
+      hasPhone,
+      appointmentFrom,
+      appointmentTo,
+      birthdayFrom,
+      birthdayTo,
+      tag,
+    });
+
+    // اگر خالی شد، یعنی صفحات تمام شده
+    if (!Array.isArray(pageItems) || pageItems.length === 0) break;
+
+    // ادغام یکتا
+    for (const it of pageItems) {
+      const key =
+        (dedupeBy && it && it[dedupeBy]) ||
+        it?._id ||
+        it?.phone ||
+        JSON.stringify(it);
+      if (!outMap.has(key)) outMap.set(key, it);
+    }
+
+    // اگر تعداد دریافتی کمتر از limit بود، صفحه آخر است
+    if (pageItems.length < limit) break;
+
+    page += 1;
+  }
+
+  return Array.from(outMap.values());
+};
+
+/* ---------- باقی CRUDها ---------- */
 
 // جستجو بر اساس شماره
 export const getPatientByPhone = async (phone) => {
@@ -161,7 +215,7 @@ export const updatePatientPhoto = async (patientId, type, data) => {
   return res?.data?.data ?? res?.data ?? null;
 };
 
-// تعداد بیماران
+// تعداد بیماران (در صورت داشتن API شمارنده)
 export const getPatientsCount = async () => {
   const res = await api.get('/patients/count');
   return res?.data?.data?.total ?? res?.data?.total ?? 0;
