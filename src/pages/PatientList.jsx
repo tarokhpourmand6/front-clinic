@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatePicker from "../components/DatePicker/DatePicker.jsx";
 import '../components/DatePicker/DatePicker.css';
-import { getPatients, createPatient, updatePatient, deletePatient } from '../api/patients';
+import { getPatients, createPatient, updatePatient, deletePatient, getPatientsCount } from '../api/patients';
 import { getAppointments } from '../api/appointments';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -21,43 +21,72 @@ export default function Patients() {
   const [success, setSuccess] = useState(false);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // --- جستجو (debounce) + صفحه‌بندی ---
+  const [typedQuery, setTypedQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage]   = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [total, setTotal] = useState(0);
+
   const [editIndex, setEditIndex] = useState(null);
   const [filterAddress, setFilterAddress] = useState('');
   const [filterBirthYear, setFilterBirthYear] = useState('');
   const [filterLastService, setFilterLastService] = useState('');
 
+  // debounce سرچ
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchQuery(typedQuery.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [typedQuery]);
+
+  const toPersianDigits = (str) => String(str || '').replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+  const toEnglishDigits = (str) => String(str || '').replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+  const normalize = (s='') => toEnglishDigits(String(s).toLowerCase().trim());
+
   const fetchPatientsWithLastService = async () => {
     try {
       setLoading(true);
-      const res = await getPatients();
-      const data = Array.isArray(res) ? res : res.data;
+
+      // دریافت لیست بیماران با صفحه/لیمیت/سرچ سروری
+      const res = await getPatients({ page, limit, q: searchQuery || undefined });
+      const data = Array.isArray(res) ? res : res?.data ?? [];
+
+      // تعداد کل رکوردها (در صورت امکان بهتر است count فیلترشده‌ی q را از سرور بگیری)
+      const cnt = await getPatientsCount();
+      setTotal(Number(cnt || 0));
+
+      // دریافت نوبت‌ها برای آخرین خدمت
       const appointments = await getAppointments();
       const lastServices = {};
-
-      appointments.forEach((a) => {
-        const phone = a.patientId?.phone;
+      (appointments || []).forEach((a) => {
+        const phone = a?.patientId?.phone;
         if (!phone) return;
-
         const prev = lastServices[phone];
         const currentDate = new Date(a.date || a.createdAt);
-
         if (!prev || new Date(prev.date || prev.createdAt) < currentDate) {
           lastServices[phone] = a;
         }
       });
 
-      const updatedPatients = data.map((p) => ({
-        ...p,
-        lastService:
-          lastServices[p.phone]?.type === "Injection"
-            ? lastServices[p.phone].consumables?.map((c) => c.name).join(" + ")
-            : lastServices[p.phone]?.laserAreas?.map((l) => l.area).join(" + ") || "-",
-      }));
+      const updatedPatients = (data || []).map((p) => {
+        const last = lastServices[p.phone];
+        let lastService = '-';
+        if (last?.type === "Injection") {
+          lastService = (last.consumables || []).map((c) => c?.name).filter(Boolean).join(" + ") || "-";
+        } else if (last) {
+          lastService = (last.laserAreas || []).map((l) => l?.area).filter(Boolean).join(" + ") || "-";
+        }
+        return { ...p, lastService };
+      });
 
       setPatients(updatedPatients);
     } catch (err) {
       console.error("⛔️ خطا در دریافت بیماران یا نوبت‌ها:", err);
+      setPatients([]);
     } finally {
       setLoading(false);
     }
@@ -65,7 +94,8 @@ export default function Patients() {
 
   useEffect(() => {
     fetchPatientsWithLastService();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit, searchQuery]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -74,13 +104,10 @@ export default function Patients() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const persianToEnglishDigits = (str) =>
-      str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
-
-    const cleanedPhone = persianToEnglishDigits(formData.phone).replace(/[^0-9]/g, '');
+    const cleanedPhone = toEnglishDigits(formData.phone).replace(/[^0-9]/g, '');
 
     const payload = {
-      fullName: `${formData.firstName} ${formData.lastName}`,
+      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
       phone: cleanedPhone,
       birthDate: formData.birthDate
         ? new Date(
@@ -114,7 +141,7 @@ export default function Patients() {
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error("⛔️ خطا در ذخیره اطلاعات بیمار:", err);
-      if (err.response?.data?.errors) {
+      if (err?.response?.data?.errors) {
         alert(err.response.data.errors.map((e) => e.msg).join('\n'));
       } else {
         alert("⛔️ خطا در ذخیره اطلاعات بیمار");
@@ -168,13 +195,17 @@ export default function Patients() {
   };
 
   const filteredPatients = patients.filter((p) => {
-    const fullName = p.fullName || `${p.firstName} ${p.lastName}`;
-    const matchesQuery = fullName.includes(searchQuery) || p.phone.includes(searchQuery);
-    const matchesAddress = p.address?.includes(filterAddress);
+    const fullName = (p.fullName || `${p.firstName || ''} ${p.lastName || ''}`).trim();
+    const matchesQuery =
+      !searchQuery ||
+      normalize(fullName).includes(normalize(searchQuery)) ||
+      normalize(p.phone || '').includes(normalize(searchQuery));
+
+    const matchesAddress = !filterAddress || normalize(p.address || '').includes(normalize(filterAddress));
     const matchesBirthYear = filterBirthYear
-      ? new Date(p.birthDate).getFullYear().toString().includes(filterBirthYear)
+      ? (p.birthDate ? String(new Date(p.birthDate).getFullYear()).includes(normalize(filterBirthYear)) : false)
       : true;
-    const matchesService = p.lastService?.includes(filterLastService);
+    const matchesService = !filterLastService || normalize(p.lastService || '').includes(normalize(filterLastService));
 
     return matchesQuery && matchesAddress && matchesBirthYear && matchesService;
   });
@@ -187,9 +218,7 @@ export default function Patients() {
     return toPersian(`${year}/${pad(month)}/${pad(day)}`);
   };
 
-  const toPersianDigits = (str) => str?.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
-
- if (loading) {
+  if (loading) {
     return (
       <div className="p-6 max-w-2xl mx-auto font-vazir">
         <LoadingSpinner />
@@ -212,7 +241,7 @@ export default function Patients() {
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white shadow-xl rounded-xl p-6 border-t-4 border-brand w-full max-w-md mx-auto">
+      <form onSubmit={handleSubmit} className="bg-white shadow-xl rounded-xl p-6 بorder-t-4 border-brand w-full max-w-md mx-auto">
         <div className="space-y-4 text-right">
           <div className="flex items-center gap-4">
             <label className="w-32 text-sm font-medium">نام:</label>
@@ -294,13 +323,13 @@ export default function Patients() {
         </div>
       </form>
 
-       <div className="mt-10">
+      <div className="mt-10">
         <h2 className="text-lg font-bold mb-4 text-emerald-800">📋 لیست بیماران</h2>
         <input
           type="text"
           placeholder="جستجو بر اساس نام، نام خانوادگی یا شماره"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          value={typedQuery}
+          onChange={(e) => setTypedQuery(e.target.value)}
           className="w-full mb-4 px-4 py-2 border border-gray-300 rounded-md text-sm shadow-sm"
         />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
@@ -344,6 +373,36 @@ export default function Patients() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* صفحه‌بندی */}
+        <div className="flex items-center justify-between mt-3">
+          <div className="text-xs text-gray-500">
+            صفحه {page} از {Math.max(1, Math.ceil((total || 0) / limit))} — {toPersianDigits(total || 0)} رکورد
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              className="border rounded px-2 py-1 text-sm"
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+            >
+              {[25, 50, 100].map(n => <option key={n} value={n}>{n} در صفحه</option>)}
+            </select>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1 border rounded text-sm disabled:opacity-50"
+            >
+              قبلی
+            </button>
+            <button
+              onClick={() => setPage(p => (p < Math.ceil((total || 0) / limit) ? p + 1 : p))}
+              disabled={page >= Math.ceil((total || 0) / limit)}
+              className="px-3 py-1 border rounded text-sm disabled:opacity-50"
+            >
+              بعدی
+            </button>
+          </div>
         </div>
       </div>
     </div>
