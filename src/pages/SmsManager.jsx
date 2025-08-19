@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 // API: ارسال‌های سریع/ثابت
 import { sendSms, sendWelcomeSms, sendBirthdaySms, sendReminderSms } from "../api/sms";
+
 // API: CRUD قالب‌های دیتابیس + ارسال با نام قالب
 import {
   listSmsTemplates,
@@ -13,7 +14,8 @@ import {
   sendByTemplate,
 } from "../api/smsTemplates";
 
-import { getPatients } from "../api/patients";
+// گرفتن بیماران (نسخه‌ی آرایه‌ای ساده)
+import { getPatientsArray } from "../api/patients";
 
 export default function SmsManager() {
   const [tab, setTab] = useState("quick"); // quick | templates | bulk | dbtemplates
@@ -87,14 +89,14 @@ export default function SmsManager() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // بارگذاری بیماران برای تب گروهی
+  // بارگذاری بیماران برای تب گروهی (نسخه‌ی ساده و آرایه‌ای)
   useEffect(() => {
     (async () => {
       try {
-        const list = await getPatients(); // Array<{_id, fullName, phone,...}>
-        setPatients(list);
+        const list = await getPatientsArray({ limit: 300 }); // هر چقدر خواستی
+        setPatients(Array.isArray(list) ? list : []);
       } catch {
-        /* مشکلی نیست اگر لیست هنوز محدودیت دسترسی دارد */
+        setPatients([]);
       }
     })();
   }, []);
@@ -105,7 +107,7 @@ export default function SmsManager() {
     (async () => {
       try {
         const data = await listSmsTemplates({ q: tplQuery });
-setTpls(Array.isArray(data) ? data : []);
+        setTpls(Array.isArray(data) ? data : []);
       } catch {
         showToast("error", "خواندن قالب‌ها ناموفق بود");
       }
@@ -183,7 +185,7 @@ setTpls(Array.isArray(data) ? data : []);
   };
 
   const runBulk = async () => {
-    const selected = patients.filter((p) => selectedIds.has(p._id) && p.phone);
+    const selected = (Array.isArray(patients) ? patients : []).filter((p) => selectedIds.has(p._id) && p.phone);
     if (!selected.length) return showToast("error", "هیچ بیماری انتخاب نشده یا شماره‌ای ثبت نشده است.");
 
     setBulkRunning(true);
@@ -256,7 +258,7 @@ setTpls(Array.isArray(data) ? data : []);
       }
       resetForm();
       const data = await listSmsTemplates({ q: tplQuery });
-setTpls(Array.isArray(data) ? data : []);
+      setTpls(Array.isArray(data) ? data : []);
     } catch (e) {
       showToast("error", e?.response?.data?.error || "ذخیره قالب ناموفق بود");
     } finally {
@@ -279,7 +281,7 @@ setTpls(Array.isArray(data) ? data : []);
     if (!confirm("حذف این قالب؟")) return;
     try {
       await removeSmsTemplate(id);
-      setTpls((prev) => prev.filter((x) => x._id !== id));
+      setTpls((prev) => (Array.isArray(prev) ? prev : []).filter((x) => x._id !== id));
       if (editId === id) resetForm();
       showToast("success", "قالب حذف شد.");
     } catch {
@@ -477,7 +479,7 @@ setTpls(Array.isArray(data) ? data : []);
                   <div className="text-sm font-bold">لیست بیماران</div>
                   <div className="flex gap-2 text-xs">
                     <button
-                      onClick={() => setSelectedIds(new Set(patients.filter((p) => p.phone).map((p) => p._id)))}
+                      onClick={() => setSelectedIds(new Set((patients || []).filter((p) => p.phone).map((p) => p._id)))}
                       className="px-3 py-1 rounded-lg border"
                     >
                       انتخاب همه
@@ -498,7 +500,7 @@ setTpls(Array.isArray(data) ? data : []);
                       </tr>
                     </thead>
                     <tbody>
-                      {patients.map((p) => (
+                      {(patients || []).map((p) => (
                         <tr key={p._id} className="border-b hover:bg-gray-50">
                           <td className="p-2 text-center">
                             <input type="checkbox" checked={selectedIds.has(p._id)} onChange={() => toggleSelect(p._id)} disabled={!p.phone} />
@@ -508,6 +510,11 @@ setTpls(Array.isArray(data) ? data : []);
                           <td className="p-2 text-gray-400">{!p.phone ? "شماره ثبت نشده" : ""}</td>
                         </tr>
                       ))}
+                      {(Array.isArray(patients) && patients.length === 0) && (
+                        <tr>
+                          <td className="p-3 text-gray-500" colSpan={4}>بیماری یافت نشد.</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -636,7 +643,7 @@ setTpls(Array.isArray(data) ? data : []);
                       </tr>
                     </thead>
                     <tbody>
-                      {tpls.map((t) => (
+                      {(tpls || []).map((t) => (
                         <tr key={t._id} className="border-b align-top">
                           <td className="p-2">
                             <div className="font-bold">{t.name}</div>
@@ -657,7 +664,7 @@ setTpls(Array.isArray(data) ? data : []);
                           </td>
                         </tr>
                       ))}
-                      {tpls.length === 0 && (
+                      {(Array.isArray(tpls) && tpls.length === 0) && (
                         <tr>
                           <td className="p-3 text-gray-500" colSpan={4}>
                             قالبی یافت نشد.
@@ -683,7 +690,7 @@ setTpls(Array.isArray(data) ? data : []);
               <thead>
                 <tr className="bg-gray-50">
                   <th className="p-2 text-right">زمان</th>
-                  <th className="p-2 text-right">گیرنده</th>
+                  <th className="پ-2 text-right">گیرنده</th>
                   <th className="p-2 text-right">نوع</th>
                   <th className="p-2 text-right">وضعیت</th>
                 </tr>
