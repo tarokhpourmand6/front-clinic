@@ -1,7 +1,7 @@
 import api from './axios';
 
 export const getPatients = async () => {
-  const res = await api.get('/patients?limit=2000');
+  const res = await api.get('/patients?limit=5000');
   return res.data.data || [];
 };
 

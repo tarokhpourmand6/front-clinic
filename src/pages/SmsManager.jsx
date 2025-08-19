@@ -14,8 +14,8 @@ import {
   sendByTemplate,
 } from "../api/smsTemplates";
 
-// گرفتن بیماران (نسخه‌ی آرایه‌ای ساده)
-import { getPatientsArray } from "../api/patients";
+// گرفتن بیماران (نسخه‌ی تک‌صفحه‌ای)
+import { getPatients } from "../api/patients";
 
 export default function SmsManager() {
   const [tab, setTab] = useState("quick"); // quick | templates | bulk | dbtemplates
@@ -89,12 +89,16 @@ export default function SmsManager() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // بارگذاری بیماران برای تب گروهی (نسخه‌ی ساده و آرایه‌ای)
+  // بارگذاری بیماران برای تب گروهی (یک صفحه، مثلاً 300 رکورد)
   useEffect(() => {
     (async () => {
       try {
-        const list = await getPatientsArray({ limit: 300 }); // هر چقدر خواستی
-        setPatients(Array.isArray(list) ? list : []);
+        const list = await getPatients({ page: 1, limit: 300 });
+        const arr =
+          Array.isArray(list) ? list :
+          Array.isArray(list?.data) ? list.data :
+          Array.isArray(list?.patients) ? list.patients : [];
+        setPatients(arr);
       } catch {
         setPatients([]);
       }
@@ -222,8 +226,6 @@ export default function SmsManager() {
         ]);
       }
       setBulkProgress((bp) => ({ ...bp, sent: bp.sent + 1 }));
-      // تاخیر برای دوری از ریت‌لیمیت
-      // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, 600));
     }
 
@@ -403,7 +405,7 @@ export default function SmsManager() {
                   <label className="text-sm">تاریخ جلالی</label>
                   <input value={tplDate} onChange={(e) => setTplDate(e.target.value)} className="w-full rounded-xl border p-2" placeholder="مثال: 1404/05/27" />
                   <label className="text-sm">ساعت</label>
-                  <input value={tplTime} onChange={(e) => setTplTime(e.target.value)} className="w-full rounded-xl border p-2" placeholder="مثال: 14:00" />
+                  <input value={tplTime} onChange={(e) => setTplTime(e.target.value)} className="w-full rounded-xl border پ-2" placeholder="مثال: 14:00" />
                 </>
               )}
 
@@ -563,7 +565,7 @@ export default function SmsManager() {
               <textarea
                 value={form.text}
                 onChange={(e) => setForm({ ...form, text: e.target.value })}
-                className="w-full rounded-xl border p-2 h-36"
+                className="w-full rounded-xl border p-2 ه-36"
                 placeholder="از {name}، {date}، {time}، {clinic} استفاده کنید"
               />
 
@@ -690,7 +692,7 @@ export default function SmsManager() {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="p-2 text-right">زمان</th>
-                  <th className="پ-2 text-right">گیرنده</th>
+                  <th className="p-2 text-right">گیرنده</th>
                   <th className="p-2 text-right">نوع</th>
                   <th className="p-2 text-right">وضعیت</th>
                 </tr>
