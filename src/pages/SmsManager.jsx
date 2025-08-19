@@ -104,8 +104,8 @@ export default function SmsManager() {
     if (tab !== "dbtemplates") return;
     (async () => {
       try {
-        const data = await listSmsTemplates(tplQuery);
-        setTpls(data);
+        const data = await listSmsTemplates({ q: tplQuery });
+setTpls(Array.isArray(data) ? data : []);
       } catch {
         showToast("error", "خواندن قالب‌ها ناموفق بود");
       }
@@ -255,8 +255,8 @@ export default function SmsManager() {
         showToast("success", "قالب ساخته شد.");
       }
       resetForm();
-      const data = await listSmsTemplates(tplQuery);
-      setTpls(data);
+      const data = await listSmsTemplates({ q: tplQuery });
+setTpls(Array.isArray(data) ? data : []);
     } catch (e) {
       showToast("error", e?.response?.data?.error || "ذخیره قالب ناموفق بود");
     } finally {
@@ -401,7 +401,7 @@ export default function SmsManager() {
                   <label className="text-sm">تاریخ جلالی</label>
                   <input value={tplDate} onChange={(e) => setTplDate(e.target.value)} className="w-full rounded-xl border p-2" placeholder="مثال: 1404/05/27" />
                   <label className="text-sm">ساعت</label>
-                  <input value={tplTime} onChange={(e) => setTplTime(e.target.value)} className="w-full rounded-xl border پ-2" placeholder="مثال: 14:00" />
+                  <input value={tplTime} onChange={(e) => setTplTime(e.target.value)} className="w-full rounded-xl border p-2" placeholder="مثال: 14:00" />
                 </>
               )}
 
