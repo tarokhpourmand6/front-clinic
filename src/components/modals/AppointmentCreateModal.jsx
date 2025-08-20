@@ -1,23 +1,29 @@
+// src/components/modals/AppointmentCreateModal.jsx
 import { useEffect, useMemo, useState } from "react";
 import moment from "moment-jalaali";
 import DatePicker from "../DatePicker/DatePicker";
 import LaserAreaSelector from "../LaserAreaSelector";
 import LoadingSpinner from "../LoadingSpinner";
-import { getPatientsPaged } from "../../api/patients";
+import { getPatients } from "../../api/patients";        // ✅ فقط همین
 import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
 
 moment.loadPersian({ dialect: "persian-modern" });
 
+const PAGE_SIZE = 20;
+
 export default function AppointmentCreateModal({
   open,
   onClose,
   preselectedPatient,
   onSuccess,
-  onOpenPatientCreate, // <-- برای باز کردن مودال ثبت بیمار
+  onOpenPatientCreate, // برای باز کردن مودال ثبت بیمار
 }) {
-  const [patients, setPatients] = useState([]);
+  // تمام بیماران (بارگیری یک‌باره)
+  const [allPatients, setAllPatients] = useState([]);
+  // لیست نمایش‌داده‌شده (پس از فیلتر و صفحه‌بندی)
+  const [visiblePatients, setVisiblePatients] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -45,51 +51,80 @@ export default function AppointmentCreateModal({
   );
   const minutes = ["00", "10", "20", "30", "40", "50"];
 
-  // لود دیتای ثابت (کالاها و قیمت لیزر)
+  // بارگذاری اولیه: محصولات + قیمت‌ها + بیماران
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
-        const prod = await getAllProducts();
-        setInventory(prod || []);
+        const [prod, laser, patientsArr] = await Promise.all([
+          getAllProducts(),
+          getLaserPrices(),
+          getPatients(), // ✅ یکبار ۵۰۰۰ تا می‌گیریم
+        ]);
 
-        const laser = await getLaserPrices();
+        setInventory(prod || []);
         const map = {};
         (laser || []).forEach(({ gender, area, price }) => {
           map[`${gender}-${area}`] = price;
         });
         setLaserPrices(map);
 
-        setSelectedPatient(preselectedPatient || null);
+        // بیماران
+        const list = Array.isArray(patientsArr) ? patientsArr : [];
+        setAllPatients(list);
+
+        // ریست وضعیت نمایش
+        setSearch("");
         setPage(1);
+        const firstPage = list.slice(0, PAGE_SIZE);
+        setVisiblePatients(firstPage);
+        setHasMore(firstPage.length < list.length);
+
+        // اگر از جدول بیماری انتخاب شده بود
+        setSelectedPatient(preselectedPatient || null);
       } finally {
         setLoading(false);
       }
     })();
   }, [open, preselectedPatient]);
 
-  // جستجوی سروری بیماران (debounce ساده)
+  // فیلتر و صفحه‌بندی سمت کلاینت با debounce ساده روی سرچ
   useEffect(() => {
     if (!open) return;
+    const t = setTimeout(() => {
+      const q = (search || "").trim();
+      const filtered = q
+        ? allPatients.filter(
+            (p) =>
+              p.fullName?.includes(q) ||
+              p.phone?.includes(q)
+          )
+        : allPatients;
 
-    const t = setTimeout(async () => {
-      const res = await getPatientsPaged({ page: 1, limit: 20, q: search?.trim() || undefined });
-      setPatients(res.data || []);
       setPage(1);
-      setHasMore(res.currentPage < res.totalPages);
-    }, 300);
-
+      const first = filtered.slice(0, PAGE_SIZE);
+      setVisiblePatients(first);
+      setHasMore(first.length < filtered.length);
+    }, 200);
     return () => clearTimeout(t);
-  }, [open, search]);
+  }, [search, allPatients, open]);
 
-  const loadMore = async () => {
-    if (!hasMore) return;
-    const next = page + 1;
-    const res = await getPatientsPaged({ page: next, limit: 20, q: search?.trim() || undefined });
-    setPatients((prev) => [...prev, ...(res.data || [])]);
-    setPage(next);
-    setHasMore(res.currentPage < res.totalPages);
+  const loadMore = () => {
+    const q = (search || "").trim();
+    const filtered = q
+      ? allPatients.filter(
+          (p) =>
+            p.fullName?.includes(q) ||
+            p.phone?.includes(q)
+        )
+      : allPatients;
+
+    const nextPage = page + 1;
+    const nextSlice = filtered.slice(0, nextPage * PAGE_SIZE);
+    setVisiblePatients(nextSlice);
+    setPage(nextPage);
+    setHasMore(nextSlice.length < filtered.length);
   };
 
   // محاسبه مبلغ
@@ -171,7 +206,7 @@ export default function AppointmentCreateModal({
                 </div>
 
                 <div className="mt-2 max-h-64 overflow-auto border rounded">
-                  {(patients || []).map((p) => (
+                  {(visiblePatients || []).map((p) => (
                     <button
                       key={p._id}
                       onClick={() => setSelectedPatient(p)}
@@ -184,6 +219,9 @@ export default function AppointmentCreateModal({
                     <button onClick={loadMore} className="w-full py-2 text-sm text-blue-600">
                       نمایش موارد بیشتر...
                     </button>
+                  )}
+                  {!hasMore && (visiblePatients || []).length === 0 && (
+                    <div className="p-3 text-xs text-gray-500 text-center">موردی پیدا نشد</div>
                   )}
                 </div>
               </div>
@@ -200,7 +238,9 @@ export default function AppointmentCreateModal({
                   <label className="text-sm">نوع خدمت:</label>
                   <select
                     value={appointment.serviceType}
-                    onChange={(e) => setAppointment((s) => ({ ...s, serviceType: e.target.value, serviceOption: [] }))}
+                    onChange={(e) =>
+                      setAppointment((s) => ({ ...s, serviceType: e.target.value, serviceOption: [] }))
+                    }
                     className="border p-2 rounded w-full text-sm mt-1"
                   >
                     <option value="تزریقات">تزریقات</option>
@@ -254,7 +294,9 @@ export default function AppointmentCreateModal({
                       <label className="text-sm">جنسیت:</label>
                       <select
                         value={appointment.gender}
-                        onChange={(e) => setAppointment((s) => ({ ...s, gender: e.target.value, serviceOption: [] }))}
+                        onChange={(e) =>
+                          setAppointment((s) => ({ ...s, gender: e.target.value, serviceOption: [] }))
+                        }
                         className="border p-2 rounded w-full text-sm mt-1"
                       >
                         <option value="female">خانم</option>
