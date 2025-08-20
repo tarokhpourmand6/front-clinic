@@ -1,10 +1,24 @@
 import api from './axios';
 
+// ✅ دریافت همه بیماران بدون محدودیت (loop روی صفحات)
 export const getPatients = async () => {
-  const res = await api.get('/patients?limit=5000');
-  return res.data.data || [];
+  let allPatients = [];
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const res = await api.get(`/patients?page=${page}&limit=200`);
+    const { data, totalPages: tp } = res.data;
+
+    allPatients = [...allPatients, ...data];
+    totalPages = tp;
+    page++;
+  }
+
+  return allPatients;
 };
 
+// ✅ بقیه متدها مثل قبل
 export const getPatientByPhone = async (phone) => {
   const res = await api.get(`/patients/by-phone/${phone}`);
   return res.data.data;
@@ -53,10 +67,8 @@ export const deletePatient = async (id) => {
   return res.data.message;
 };
 
-
 export const updatePatientPhoto = async (patientId, type, data) => {
   if (data.method === "DELETE") {
-    // حذف عکس
     const res = await api.put(`/patients/${patientId}/photos/${type}`, {
       path: data.imagePath,
       method: "DELETE",
@@ -64,12 +76,12 @@ export const updatePatientPhoto = async (patientId, type, data) => {
     return res.data.data;
   }
 
-  // افزودن عکس
   const res = await api.put(`/patients/${patientId}/photos/${type}`, data, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data.data;
 };
+
 export const getPatientsCount = async () => {
   const res = await api.get('/patients/count');
   return res.data.data.total;
