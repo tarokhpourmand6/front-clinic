@@ -4,7 +4,7 @@ import moment from "moment-jalaali";
 import DatePicker from "../DatePicker/DatePicker";
 import LaserAreaSelector from "../LaserAreaSelector";
 import LoadingSpinner from "../LoadingSpinner";
-import { getPatients } from "../../api/patients";        // ✅ فقط همین
+import { getPatients } from "../../api/patients";       // ✅ فقط همین
 import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
@@ -18,11 +18,9 @@ export default function AppointmentCreateModal({
   onClose,
   preselectedPatient,
   onSuccess,
-  onOpenPatientCreate, // برای باز کردن مودال ثبت بیمار
+  onOpenPatientCreate,
 }) {
-  // تمام بیماران (بارگیری یک‌باره)
   const [allPatients, setAllPatients] = useState([]);
-  // لیست نمایش‌داده‌شده (پس از فیلتر و صفحه‌بندی)
   const [visiblePatients, setVisiblePatients] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -51,37 +49,35 @@ export default function AppointmentCreateModal({
   );
   const minutes = ["00", "10", "20", "30", "40", "50"];
 
-  // بارگذاری اولیه: محصولات + قیمت‌ها + بیماران
+  // بارگذاری اولیه
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
-        const [prod, laser, patientsArr] = await Promise.all([
+        const [prod, laser, pts] = await Promise.all([
           getAllProducts(),
           getLaserPrices(),
-          getPatients(), // ✅ یکبار ۵۰۰۰ تا می‌گیریم
+          getPatients(), // ✅ یکبار ۵۰۰۰ تا
         ]);
 
         setInventory(prod || []);
-        const map = {};
+        const priceMap = {};
         (laser || []).forEach(({ gender, area, price }) => {
-          map[`${gender}-${area}`] = price;
+          priceMap[`${gender}-${area}`] = price;
         });
-        setLaserPrices(map);
+        setLaserPrices(priceMap);
 
-        // بیماران
-        const list = Array.isArray(patientsArr) ? patientsArr : [];
+        const list = Array.isArray(pts) ? pts : [];
         setAllPatients(list);
 
-        // ریست وضعیت نمایش
+        // ریست صفحه‌ و خروجی اولیه
         setSearch("");
         setPage(1);
-        const firstPage = list.slice(0, PAGE_SIZE);
-        setVisiblePatients(firstPage);
-        setHasMore(firstPage.length < list.length);
+        const first = list.slice(0, PAGE_SIZE);
+        setVisiblePatients(first);
+        setHasMore(first.length < list.length);
 
-        // اگر از جدول بیماری انتخاب شده بود
         setSelectedPatient(preselectedPatient || null);
       } finally {
         setLoading(false);
@@ -89,22 +85,20 @@ export default function AppointmentCreateModal({
     })();
   }, [open, preselectedPatient]);
 
-  // فیلتر و صفحه‌بندی سمت کلاینت با debounce ساده روی سرچ
+  // فیلتر کلاینتی با debounce
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
       const q = (search || "").trim();
       const filtered = q
         ? allPatients.filter(
-            (p) =>
-              p.fullName?.includes(q) ||
-              p.phone?.includes(q)
+            (p) => p.fullName?.includes(q) || p.phone?.includes(q)
           )
         : allPatients;
 
-      setPage(1);
       const first = filtered.slice(0, PAGE_SIZE);
       setVisiblePatients(first);
+      setPage(1);
       setHasMore(first.length < filtered.length);
     }, 200);
     return () => clearTimeout(t);
@@ -114,9 +108,7 @@ export default function AppointmentCreateModal({
     const q = (search || "").trim();
     const filtered = q
       ? allPatients.filter(
-          (p) =>
-            p.fullName?.includes(q) ||
-            p.phone?.includes(q)
+          (p) => p.fullName?.includes(q) || p.phone?.includes(q)
         )
       : allPatients;
 
