@@ -53,6 +53,15 @@ export const getPatientsPaged = async (params = {}) => {
     tag,
   } = params;
 
+// ✅ سازگاری با کدهای قبلی: فقط آرایه برمی‌گرداند
+export const getPatients = async (params = {}) => {
+  const result = await getPatientsPaged(params);
+  return Array.isArray(result?.data) ? result.data : [];
+};
+
+// ✅ اگر جایی از پروژه هنوز از اسم قدیمی استفاده می‌کند
+export const getPatientsArray = getPatients;
+
   const res = await api.get('/patients', {
     params: buildParams({
       page,
