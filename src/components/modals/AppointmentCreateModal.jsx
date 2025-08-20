@@ -4,7 +4,7 @@ import moment from "moment-jalaali";
 import DatePicker from "../DatePicker/DatePicker";
 import LaserAreaSelector from "../LaserAreaSelector";
 import LoadingSpinner from "../LoadingSpinner";
-import { getPatientsQuick } from "../../api/patients";   // ✅ متد سریع
+import { getPatientsQuick } from "../../api/patients";
 import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
@@ -13,8 +13,19 @@ moment.loadPersian({ dialect: "persian-modern" });
 
 const PAGE_SIZE = 20;
 
-// ✅ ارقام فارسی → انگلیسی (برای جستجو روی شماره)
+/* ---------- helpers (normalize) ---------- */
 const fa2en = (s = "") => String(s).replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+const normPhone = (s = "") => fa2en(s).replace(/\D/g, "");
+const normFa = (s = "") =>
+  String(s)
+    .trim()
+    .replace(/\u200c/g, " ") // ZWNJ → space
+    .replace(/‌/g, " ")       // نیم‌فاصله فارسی
+    .replace(/\u0640/g, "")   // tatweel
+    .replace(/ك/g, "ک")
+    .replace(/ي/g, "ی")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 
 export default function AppointmentCreateModal({
   open,
@@ -52,7 +63,7 @@ export default function AppointmentCreateModal({
   );
   const minutes = ["00", "10", "20", "30", "40", "50"];
 
-  // بارگذاری اولیه
+  /* ---------- initial load ---------- */
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -61,19 +72,27 @@ export default function AppointmentCreateModal({
         const [prod, laser, pts] = await Promise.all([
           getAllProducts(),
           getLaserPrices(),
-          getPatientsQuick(),   // ✅ یک درخواست با limit=5000
+          getPatientsQuick(), // یک درخواست با limit=5000
         ]);
 
         setInventory(prod || []);
+
         const priceMap = {};
         (laser || []).forEach(({ gender, area, price }) => {
           priceMap[`${gender}-${area}`] = price;
         });
         setLaserPrices(priceMap);
 
-        const list = Array.isArray(pts) ? pts : [];
+        // نرمال کردن لیست برای جست‌وجوی سریع
+        const rawList = Array.isArray(pts) ? pts : [];
+        const list = rawList.map((p) => ({
+          ...p,
+          _name: normFa(p?.fullName || ""),
+          _phone: normPhone(p?.phone || ""),
+        }));
         setAllPatients(list);
 
+        // خروجی اولیه
         setSearch("");
         setPage(1);
         const first = list.slice(0, PAGE_SIZE);
@@ -87,19 +106,18 @@ export default function AppointmentCreateModal({
     })();
   }, [open, preselectedPatient]);
 
-  // فیلتر کلاینتی با درنظر گرفتن ارقام فارسی
+  /* ---------- client-side search (debounced) ---------- */
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
-      const q = (search || "").trim();
-      const qNum = fa2en(q).replace(/\D/g, "");
+      const qRaw = (search || "").trim();
+      const qName = normFa(qRaw);
+      const qPhone = normPhone(qRaw);
 
-      const filtered = q
-        ? allPatients.filter((p) => {
-            const nameHit = p.fullName?.includes(q);
-            const phoneHit = fa2en(p.phone || "").includes(qNum);
-            return nameHit || phoneHit;
-          })
+      const filtered = qRaw
+        ? allPatients.filter((p) =>
+            (qName && p._name.includes(qName)) || (qPhone && p._phone.includes(qPhone))
+          )
         : allPatients;
 
       const first = filtered.slice(0, PAGE_SIZE);
@@ -111,14 +129,14 @@ export default function AppointmentCreateModal({
   }, [search, allPatients, open]);
 
   const loadMore = () => {
-    const q = (search || "").trim();
-    const qNum = fa2en(q).replace(/\D/g, "");
-    const filtered = q
-      ? allPatients.filter((p) => {
-          const nameHit = p.fullName?.includes(q);
-          const phoneHit = fa2en(p.phone || "").includes(qNum);
-          return nameHit || phoneHit;
-        })
+    const qRaw = (search || "").trim();
+    const qName = normFa(qRaw);
+    const qPhone = normPhone(qRaw);
+
+    const filtered = qRaw
+      ? allPatients.filter((p) =>
+          (qName && p._name.includes(qName)) || (qPhone && p._phone.includes(qPhone))
+        )
       : allPatients;
 
     const nextPage = page + 1;
@@ -128,7 +146,7 @@ export default function AppointmentCreateModal({
     setHasMore(nextSlice.length < filtered.length);
   };
 
-  // محاسبه مبلغ
+  /* ---------- price calc ---------- */
   useEffect(() => {
     let total = 0;
     if (appointment.serviceType === "تزریقات") {
