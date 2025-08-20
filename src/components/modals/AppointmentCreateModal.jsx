@@ -4,7 +4,7 @@ import moment from "moment-jalaali";
 import DatePicker from "../DatePicker/DatePicker";
 import LaserAreaSelector from "../LaserAreaSelector";
 import LoadingSpinner from "../LoadingSpinner";
-import { getPatients } from "../../api/patients";       // ✅ فقط همین
+import { getPatientsQuick } from "../../api/patients";   // ✅ متد سریع
 import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
@@ -12,6 +12,9 @@ import { createAppointment } from "../../api/appointments";
 moment.loadPersian({ dialect: "persian-modern" });
 
 const PAGE_SIZE = 20;
+
+// ✅ ارقام فارسی → انگلیسی (برای جستجو روی شماره)
+const fa2en = (s = "") => String(s).replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
 
 export default function AppointmentCreateModal({
   open,
@@ -58,7 +61,7 @@ export default function AppointmentCreateModal({
         const [prod, laser, pts] = await Promise.all([
           getAllProducts(),
           getLaserPrices(),
-          getPatients(), // ✅ یکبار ۵۰۰۰ تا
+          getPatientsQuick(),   // ✅ یک درخواست با limit=5000
         ]);
 
         setInventory(prod || []);
@@ -71,7 +74,6 @@ export default function AppointmentCreateModal({
         const list = Array.isArray(pts) ? pts : [];
         setAllPatients(list);
 
-        // ریست صفحه‌ و خروجی اولیه
         setSearch("");
         setPage(1);
         const first = list.slice(0, PAGE_SIZE);
@@ -85,59 +87,45 @@ export default function AppointmentCreateModal({
     })();
   }, [open, preselectedPatient]);
 
-  // فیلتر کلاینتی با debounce
-   useEffect(() => {
-   if (!open) return;
-   const t = setTimeout(() => {
-     const qRaw = (search || "").trim();
-     const qLower = qRaw.toLowerCase();
-     const qPhone = fa2en(qRaw).replace(/\D/g, "");
+  // فیلتر کلاینتی با درنظر گرفتن ارقام فارسی
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      const q = (search || "").trim();
+      const qNum = fa2en(q).replace(/\D/g, "");
 
-     const filtered = (qLower || qPhone)
-       ? allPatients.filter((p) => {
-           const name = (p.fullName || "").toLowerCase();
-           const phone = fa2en(p.phone || "");
-           return (qLower && name.includes(qLower)) || (qPhone && phone.includes(qPhone));
+      const filtered = q
+        ? allPatients.filter((p) => {
+            const nameHit = p.fullName?.includes(q);
+            const phoneHit = fa2en(p.phone || "").includes(qNum);
+            return nameHit || phoneHit;
           })
         : allPatients;
 
-     // نمایشِ مرتب‌تر: جدیدترها اول (اگر createdAt هست)
-     const sorted = [...filtered].sort((a, b) => {
-       const aa = new Date(a.createdAt || 0).getTime();
-       const bb = new Date(b.createdAt || 0).getTime();
-       return bb - aa;
-     });
-
-     const first = sorted.slice(0, PAGE_SIZE);
-     setVisiblePatients(first);
-     setPage(1);
-     setHasMore(first.length < sorted.length);
-   }, 200);
-   return () => clearTimeout(t);
- }, [search, allPatients, open]);
+      const first = filtered.slice(0, PAGE_SIZE);
+      setVisiblePatients(first);
+      setPage(1);
+      setHasMore(first.length < filtered.length);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [search, allPatients, open]);
 
   const loadMore = () => {
-   const qRaw = (search || "").trim();
-   const qLower = qRaw.toLowerCase();
-   const qPhone = fa2en(qRaw).replace(/\D/g, "");
-   const filtered = (qLower || qPhone)
-     ? allPatients.filter((p) => {
-         const name = (p.fullName || "").toLowerCase();
-         const phone = fa2en(p.phone || "");
-         return (qLower && name.includes(qLower)) || (qPhone && phone.includes(qPhone));
-       })
-     : allPatients;
-   const sorted = [...filtered].sort((a, b) => {
-     const aa = new Date(a.createdAt || 0).getTime();
-     const bb = new Date(b.createdAt || 0).getTime();
-     return bb - aa;
-   });
+    const q = (search || "").trim();
+    const qNum = fa2en(q).replace(/\D/g, "");
+    const filtered = q
+      ? allPatients.filter((p) => {
+          const nameHit = p.fullName?.includes(q);
+          const phoneHit = fa2en(p.phone || "").includes(qNum);
+          return nameHit || phoneHit;
+        })
+      : allPatients;
 
     const nextPage = page + 1;
-   const nextSlice = sorted.slice(0, nextPage * PAGE_SIZE);
+    const nextSlice = filtered.slice(0, nextPage * PAGE_SIZE);
     setVisiblePatients(nextSlice);
     setPage(nextPage);
-    setHasMore(nextSlice.length < sorted.length);
+    setHasMore(nextSlice.length < filtered.length);
   };
 
   // محاسبه مبلغ
