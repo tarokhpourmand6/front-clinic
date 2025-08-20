@@ -2,15 +2,18 @@
 import api from "./axios";
 
 const PAGE_SIZE = 200;
-const MAX_PAGES_SAFE = 200; // برای جلوگیری از لوپ بی‌نهایت
+const MAX_PAGES_SAFE = 200; // جلوگیری از لوپ بی‌نهایت
 
 /* ---------------- helpers ---------------- */
 
+// بعضی پاسخ‌ها این‌شکلی‌اند: { success, message, data: { data:[], currentPage,... } }
+const unwrap = (body) => (body && body.data !== undefined ? body.data : body);
+
 const normalizeList = (body) => {
-  // خروجی استاندارد بک‌اند شما: { data:[], currentPage, totalPages, totalItems, pageSize }
-  if (Array.isArray(body?.data)) return body.data;
-  // اگر برخی نسخه‌ها مستقیماً آرایه بدهند
-  if (Array.isArray(body)) return body;
+  const payload = unwrap(body);
+  if (Array.isArray(payload?.data)) return payload.data; // فرم استاندارد: {data:[...], ...}
+  if (Array.isArray(payload)) return payload;            // مستقیماً آرایه
+  if (Array.isArray(body?.data)) return body.data;       // سازگاری قدیمی
   return [];
 };
 
@@ -23,13 +26,13 @@ const toNumber = (v, fallback) => {
 
 /**
  * دریافت صفحه‌ای بیماران با جستجو/فیلتر اختیاری
- * @returns { data, currentPage, totalPages, totalItems, pageSize }
+ * خروجی: { data, currentPage, totalPages, totalItems, pageSize }
  */
 export const getPatientsPaged = async (params = {}) => {
   const {
     page = 1,
     limit = PAGE_SIZE,
-    q,           // جستجو روی نام/شماره (بک‌اند از q پشتیبانی می‌کند)
+    q,           // جستجو روی نام/شماره
     hasPhone,    // "true" | "false"
     tag,
     sort,
@@ -49,27 +52,30 @@ export const getPatientsPaged = async (params = {}) => {
   });
 
   const body = res?.data ?? {};
+  const payload = unwrap(body);
   const data = normalizeList(body);
 
   return {
     data,
-    currentPage: toNumber(body?.currentPage, page),
-    totalPages: toNumber(body?.totalPages, 1),
-    totalItems: toNumber(body?.totalItems ?? body?.total, data.length),
-    pageSize: toNumber(body?.pageSize, limit),
+    currentPage: toNumber(payload?.currentPage ?? body?.currentPage, page),
+    totalPages:  toNumber(payload?.totalPages  ?? body?.totalPages,  1),
+    totalItems:  toNumber(
+      payload?.totalItems ?? payload?.total ?? body?.totalItems ?? body?.total,
+      data.length
+    ),
+    pageSize:    toNumber(payload?.pageSize   ?? body?.pageSize,    limit),
   };
 };
 
 /* ---------------- load-all (compat) ---------------- */
 
 /**
- * دریافت همه بیماران با صفحه‌به‌صفحه (برای سازگاری قدیمی)
- * نکته: می‌توانی q بدهی تا همه صفحاتِ نتایجِ جستجو لود شود.
+ * دریافت همه بیماران صفحه‌به‌صفحه (در صورت نیاز می‌توانی q/hasPhone/tag بدهی)
  */
 export const getPatients = async (params = {}) => {
   const { q, hasPhone, tag } = params;
-  let all = [];
 
+  let all = [];
   let page = 1;
   let totalPages = 1;
 
@@ -83,7 +89,7 @@ export const getPatients = async (params = {}) => {
     });
 
     if (!Array.isArray(data) || data.length === 0) {
-      totalPages = currentPage; // پایان عملیات
+      totalPages = currentPage; // صفحه خالی → پایان
       break;
     }
 
@@ -95,7 +101,7 @@ export const getPatients = async (params = {}) => {
   return all;
 };
 
-// اگر دوست داری اسم شفاف‌تری داشته باشی
+// نام معادل
 export const getAllPatients = getPatients;
 
 /* ---------------- single item & mutations ---------------- */
@@ -136,6 +142,8 @@ export const updatePatient = async (id, patient) => {
     address: patient.address || "",
     tag: patient.tag || "",
     notes: patient.notes || "",
+  // مهم: اگر بک‌اند خودش photos را نگه می‌دارد، همین کافیست؛
+  // در غیر اینصورت از patient.photos استفاده کن:
     photos: patient.photos || { before: [], after: [] },
   };
 
