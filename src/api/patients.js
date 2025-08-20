@@ -1,38 +1,76 @@
-import api from "./axios";
+import api from './axios';
 
-// گرفتن همه بیماران با لیمیت بالا (مثلاً 5000)
 export const getPatients = async () => {
-  const res = await api.get("/patients?limit=5000");
+  const res = await api.get('/patients?limit=5000');
   return res.data.data || [];
 };
 
-// سرچ بیمار بر اساس نام یا شماره
-export const searchPatients = async (query) => {
-  if (!query || query.trim() === "") return [];
-  const res = await api.get(`/patients?search=${query}&limit=20`);
-  return res.data.data || [];
-};
-
-// گرفتن بیمار با شماره
 export const getPatientByPhone = async (phone) => {
   const res = await api.get(`/patients/by-phone/${phone}`);
   return res.data.data;
 };
 
-// ایجاد بیمار جدید
 export const createPatient = async (patient) => {
   const fullName =
     patient.fullName ||
-    `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
+    `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
 
   const payload = {
     fullName,
     birthDate: patient.birthDate,
     phone: patient.phone,
-    address: patient.address,
-    notes: patient.notes || "",
+    address: patient.address || '',
+    tag: '',
+    notes: patient.notes || '',
+    photos: { before: [], after: [] }
   };
 
-  const res = await api.post("/patients", payload);
+  const res = await api.post('/patients', payload);
   return res.data.data;
+};
+
+export const updatePatient = async (id, patient) => {
+  const fullName =
+    patient.fullName ||
+    `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
+
+  const payload = {
+    fullName,
+    birthDate: patient.birthDate,
+    phone: patient.phone,
+    address: patient.address || '',
+    tag: '',
+    notes: patient.notes || '',
+    photos: { before: [], after: [] }
+  };
+
+  const res = await api.put(`/patients/${id}`, payload);
+  return res.data.data;
+};
+
+export const deletePatient = async (id) => {
+  const res = await api.delete(`/patients/${id}`);
+  return res.data.message;
+};
+
+
+export const updatePatientPhoto = async (patientId, type, data) => {
+  if (data.method === "DELETE") {
+    // حذف عکس
+    const res = await api.put(`/patients/${patientId}/photos/${type}`, {
+      path: data.imagePath,
+      method: "DELETE",
+    });
+    return res.data.data;
+  }
+
+  // افزودن عکس
+  const res = await api.put(`/patients/${patientId}/photos/${type}`, data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data;
+};
+export const getPatientsCount = async () => {
+  const res = await api.get('/patients/count');
+  return res.data.data.total;
 };
