@@ -86,37 +86,58 @@ export default function AppointmentCreateModal({
   }, [open, preselectedPatient]);
 
   // فیلتر کلاینتی با debounce
-  useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(() => {
-      const q = (search || "").trim();
-      const filtered = q
-        ? allPatients.filter(
-            (p) => p.fullName?.includes(q) || p.phone?.includes(q)
-          )
+   useEffect(() => {
+   if (!open) return;
+   const t = setTimeout(() => {
+     const qRaw = (search || "").trim();
+     const qLower = qRaw.toLowerCase();
+     const qPhone = fa2en(qRaw).replace(/\D/g, "");
+
+     const filtered = (qLower || qPhone)
+       ? allPatients.filter((p) => {
+           const name = (p.fullName || "").toLowerCase();
+           const phone = fa2en(p.phone || "");
+           return (qLower && name.includes(qLower)) || (qPhone && phone.includes(qPhone));
+          })
         : allPatients;
 
-      const first = filtered.slice(0, PAGE_SIZE);
-      setVisiblePatients(first);
-      setPage(1);
-      setHasMore(first.length < filtered.length);
-    }, 200);
-    return () => clearTimeout(t);
-  }, [search, allPatients, open]);
+     // نمایشِ مرتب‌تر: جدیدترها اول (اگر createdAt هست)
+     const sorted = [...filtered].sort((a, b) => {
+       const aa = new Date(a.createdAt || 0).getTime();
+       const bb = new Date(b.createdAt || 0).getTime();
+       return bb - aa;
+     });
+
+     const first = sorted.slice(0, PAGE_SIZE);
+     setVisiblePatients(first);
+     setPage(1);
+     setHasMore(first.length < sorted.length);
+   }, 200);
+   return () => clearTimeout(t);
+ }, [search, allPatients, open]);
 
   const loadMore = () => {
-    const q = (search || "").trim();
-    const filtered = q
-      ? allPatients.filter(
-          (p) => p.fullName?.includes(q) || p.phone?.includes(q)
-        )
-      : allPatients;
+   const qRaw = (search || "").trim();
+   const qLower = qRaw.toLowerCase();
+   const qPhone = fa2en(qRaw).replace(/\D/g, "");
+   const filtered = (qLower || qPhone)
+     ? allPatients.filter((p) => {
+         const name = (p.fullName || "").toLowerCase();
+         const phone = fa2en(p.phone || "");
+         return (qLower && name.includes(qLower)) || (qPhone && phone.includes(qPhone));
+       })
+     : allPatients;
+   const sorted = [...filtered].sort((a, b) => {
+     const aa = new Date(a.createdAt || 0).getTime();
+     const bb = new Date(b.createdAt || 0).getTime();
+     return bb - aa;
+   });
 
     const nextPage = page + 1;
-    const nextSlice = filtered.slice(0, nextPage * PAGE_SIZE);
+   const nextSlice = sorted.slice(0, nextPage * PAGE_SIZE);
     setVisiblePatients(nextSlice);
     setPage(nextPage);
-    setHasMore(nextSlice.length < filtered.length);
+    setHasMore(nextSlice.length < sorted.length);
   };
 
   // محاسبه مبلغ

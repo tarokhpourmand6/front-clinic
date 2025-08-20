@@ -2,45 +2,92 @@
 import api from "./axios";
 
 const PAGE_SIZE = 200;
-const MAX_PAGES_SAFE = 200; // سقف ایمنی برای جلوگیری از لوپ بی‌نهایت
+const MAX_PAGES_SAFE = 200; // برای جلوگیری از لوپ بی‌نهایت
 
-// یک صفحه را می‌گیرد و خروجی را نرمال می‌کند
-async function fetchPatientsPage(page) {
+/* ---------------- helpers ---------------- */
+
+const normalizeList = (body) => {
+  // خروجی استاندارد بک‌اند شما: { data:[], currentPage, totalPages, totalItems, pageSize }
+  if (Array.isArray(body?.data)) return body.data;
+  // اگر برخی نسخه‌ها مستقیماً آرایه بدهند
+  if (Array.isArray(body)) return body;
+  return [];
+};
+
+const toNumber = (v, fallback) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+/* ---------------- paged API ---------------- */
+
+/**
+ * دریافت صفحه‌ای بیماران با جستجو/فیلتر اختیاری
+ * @returns { data, currentPage, totalPages, totalItems, pageSize }
+ */
+export const getPatientsPaged = async (params = {}) => {
+  const {
+    page = 1,
+    limit = PAGE_SIZE,
+    q,           // جستجو روی نام/شماره (بک‌اند از q پشتیبانی می‌کند)
+    hasPhone,    // "true" | "false"
+    tag,
+    sort,
+    order,       // 'asc' | 'desc'
+  } = params;
+
   const res = await api.get("/patients", {
-    params: { page, limit: PAGE_SIZE },
+    params: {
+      page,
+      limit,
+      q: q || undefined,
+      hasPhone: hasPhone ?? undefined,
+      tag: tag || undefined,
+      sort: sort || undefined,
+      order: order || undefined,
+    },
   });
 
   const body = res?.data ?? {};
-  // حالت استاندارد بک‌اند: { data:[], currentPage, totalPages, totalItems, pageSize }
-  let list = Array.isArray(body?.data) ? body.data : [];
-  // اگر برخی نسخه‌ها مستقیماً آرایه بدهند
-  if (!list.length && Array.isArray(body)) list = body;
+  const data = normalizeList(body);
 
-  const currentPage = Number(body?.currentPage ?? page);
-  // اگر totalPages نبود، با توجه به طول لیست حدس می‌زنیم
-  const totalPages =
-    Number(body?.totalPages) ||
-    (list.length < PAGE_SIZE ? currentPage : currentPage + 1);
+  return {
+    data,
+    currentPage: toNumber(body?.currentPage, page),
+    totalPages: toNumber(body?.totalPages, 1),
+    totalItems: toNumber(body?.totalItems ?? body?.total, data.length),
+    pageSize: toNumber(body?.pageSize, limit),
+  };
+};
 
-  return { list, currentPage, totalPages };
-}
+/* ---------------- load-all (compat) ---------------- */
 
-// ✅ دریافت همه بیماران (لوپ روی صفحات)
-export const getPatients = async () => {
+/**
+ * دریافت همه بیماران با صفحه‌به‌صفحه (برای سازگاری قدیمی)
+ * نکته: می‌توانی q بدهی تا همه صفحاتِ نتایجِ جستجو لود شود.
+ */
+export const getPatients = async (params = {}) => {
+  const { q, hasPhone, tag } = params;
   let all = [];
+
   let page = 1;
   let totalPages = 1;
 
   while (page <= totalPages && page <= MAX_PAGES_SAFE) {
-    const { list, currentPage, totalPages: tp } = await fetchPatientsPage(page);
+    const { data, currentPage, totalPages: tp } = await getPatientsPaged({
+      page,
+      limit: PAGE_SIZE,
+      q,
+      hasPhone,
+      tag,
+    });
 
-    // اگر سرور داده‌ای برنگرداند، برای جلوگیری از حلقه بی‌پایان می‌شکنیم
-    if (!Array.isArray(list) || list.length === 0) {
-      totalPages = currentPage; // پایان
+    if (!Array.isArray(data) || data.length === 0) {
+      totalPages = currentPage; // پایان عملیات
       break;
     }
 
-    all = all.concat(list);
+    all = all.concat(data);
     totalPages = tp || totalPages;
     page += 1;
   }
@@ -48,13 +95,16 @@ export const getPatients = async () => {
   return all;
 };
 
-// ✅ دریافت بیمار با شماره
+// اگر دوست داری اسم شفاف‌تری داشته باشی
+export const getAllPatients = getPatients;
+
+/* ---------------- single item & mutations ---------------- */
+
 export const getPatientByPhone = async (phone) => {
   const res = await api.get(`/patients/by-phone/${phone}`);
   return res?.data?.data ?? null;
 };
 
-// ✅ ساخت بیمار
 export const createPatient = async (patient) => {
   const fullName =
     patient.fullName ||
@@ -62,10 +112,10 @@ export const createPatient = async (patient) => {
 
   const payload = {
     fullName,
-    birthDate: patient.birthDate, // می‌تواند null/undefined باشد
+    birthDate: patient.birthDate ?? null,
     phone: patient.phone,
     address: patient.address || "",
-    tag: "",
+    tag: patient.tag || "",
     notes: patient.notes || "",
     photos: { before: [], after: [] },
   };
@@ -74,7 +124,6 @@ export const createPatient = async (patient) => {
   return res?.data?.data ?? null;
 };
 
-// ✅ ویرایش بیمار
 export const updatePatient = async (id, patient) => {
   const fullName =
     patient.fullName ||
@@ -82,25 +131,23 @@ export const updatePatient = async (id, patient) => {
 
   const payload = {
     fullName,
-    birthDate: patient.birthDate,
+    birthDate: patient.birthDate ?? null,
     phone: patient.phone,
     address: patient.address || "",
-    tag: "",
+    tag: patient.tag || "",
     notes: patient.notes || "",
-    photos: { before: [], after: [] },
+    photos: patient.photos || { before: [], after: [] },
   };
 
   const res = await api.put(`/patients/${id}`, payload);
   return res?.data?.data ?? null;
 };
 
-// ✅ حذف بیمار
 export const deletePatient = async (id) => {
   const res = await api.delete(`/patients/${id}`);
   return res?.data?.message ?? "OK";
 };
 
-// ✅ مدیریت عکس‌های بیمار
 export const updatePatientPhoto = async (patientId, type, data) => {
   if (data.method === "DELETE") {
     const res = await api.put(`/patients/${patientId}/photos/${type}`, {
@@ -116,7 +163,6 @@ export const updatePatientPhoto = async (patientId, type, data) => {
   return res?.data?.data ?? null;
 };
 
-// ✅ تعداد کل بیماران
 export const getPatientsCount = async () => {
   const res = await api.get("/patients/count");
   return res?.data?.data?.total ?? 0;
