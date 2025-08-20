@@ -38,8 +38,7 @@ const deepFindFirstList = (obj) => {
 
 /* ---------- APIs ---------- */
 
-// لیست بیماران (با صفحه‌بندی/سرچ اختیاری)
-// src/api/patients.js
+/** لیست بیماران با صفحه‌بندی/سرچ اختیاری (shape استاندارد) */
 export const getPatientsPaged = async (params = {}) => {
   const {
     page = 1,
@@ -52,15 +51,6 @@ export const getPatientsPaged = async (params = {}) => {
     birthdayTo,
     tag,
   } = params;
-
-// ✅ سازگاری با کدهای قبلی: فقط آرایه برمی‌گرداند
-export const getPatients = async (params = {}) => {
-  const result = await getPatientsPaged(params);
-  return Array.isArray(result?.data) ? result.data : [];
-};
-
-// ✅ اگر جایی از پروژه هنوز از اسم قدیمی استفاده می‌کند
-export const getPatientsArray = getPatients;
 
   const res = await api.get('/patients', {
     params: buildParams({
@@ -76,8 +66,8 @@ export const getPatientsArray = getPatients;
     }),
   });
 
-  // تلاش برای خواندن متادیتا از چند شکل متداول
   const raw = res?.data ?? {};
+
   // حالت استاندارد بک‌اند شما: { data:[], currentPage, totalPages, totalItems, pageSize }
   if (Array.isArray(raw?.data)) {
     return {
@@ -89,9 +79,16 @@ export const getPatientsArray = getPatients;
     };
   }
 
-  // اگر بک‌اند قدیمی فقط آرایه می‌داد:
-  const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : deepFindFirstList(raw);
+  // حالت‌های قدیمی/متفرقه
+  const list =
+    Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : deepFindFirstList(raw);
+
   const total = Number(raw?.totalItems ?? raw?.total ?? list.length);
+
   return {
     data: list,
     currentPage: Number(raw?.currentPage ?? 1),
@@ -99,6 +96,20 @@ export const getPatientsArray = getPatients;
     totalItems: total,
     pageSize: Number(raw?.pageSize ?? list.length),
   };
+};
+
+/** سازگاری با کدهای قبلی: فقط آرایه برمی‌گرداند */
+export const getPatients = async (params = {}) => {
+  const result = await getPatientsPaged(params);
+  return Array.isArray(result?.data) ? result.data : [];
+};
+
+/** اگر جایی از پروژه هنوز از اسم قدیمی استفاده می‌کند */
+export const getPatientsArray = getPatients;
+
+export const getPatientByPhone = async (phone) => {
+  const res = await api.get(`/patients/by-phone/${phone}`);
+  return res?.data?.data ?? res?.data ?? null;
 };
 
 export const createPatient = async (patient) => {
