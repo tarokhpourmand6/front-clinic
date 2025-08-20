@@ -15,11 +15,10 @@ import PaymentModal from '../components/appointments/PaymentModal';
 // برای مودال ثبت نوبت (بر اساس AppointmentNew)
 import DatePicker from '../components/DatePicker/DatePicker';
 import LaserAreaSelector from '../components/LaserAreaSelector';
-import { createPatient } from '../api/patients';
+import { getPatients, createPatient } from '../api/patients';
 import { createAppointment } from '../api/appointments';
 import { getAllProducts } from '../api/inventory';
 import { getLaserPrices } from '../api/laserPrice';
-import api from '../api/axios';
 
 moment.loadPersian({ dialect: 'persian-modern' });
 
@@ -58,84 +57,30 @@ function AppointmentCreateModal({
   );
   const minutes = ['00', '10', '20', '30', '40', '50'];
 
-  // وقتی مودال باز می‌شود، پیش‌فرض‌ها را ست و دیتاهای ثابت را بارگذاری کن
   useEffect(() => {
     if (!open) return;
-    setSelectedPatient(preselectedPatient || null);
-    setShowNewPatient(false);
-    setNewPatient({ fullName: '', phone: '' });
-    setAppointment({
-      serviceType: 'تزریقات',
-      serviceOption: [],
-      appointmentDate: null,
-      appointmentHour: '08',
-      appointmentMinute: '00',
-      status: 'Scheduled',
-      price: 0,
-      gender: 'female',
-    });
-
-    let ignore = false;
     (async () => {
       setLoading(true);
       try {
-        // بارگذاری موازی اقلام و قیمت‌های لیزر
-        const [prod, laser] = await Promise.all([getAllProducts(), getLaserPrices()]);
-        if (ignore) return;
+        const p = await getPatients({ limit: 5000 }); // سریع و یک‌بار داخل مودال
+        setPatients(Array.isArray(p) ? p : p?.data || []);
 
+        const prod = await getAllProducts();
         setInventory(prod || []);
 
+        const laser = await getLaserPrices();
         const priceMap = {};
         (laser || []).forEach(({ gender, area, price }) => {
           priceMap[`${gender}-${area}`] = price;
         });
         setLaserPrices(priceMap);
-      } catch {
-        if (!ignore) {
-          setInventory([]);
-          setLaserPrices({});
-        }
+
+        setSelectedPatient(preselectedPatient || null);
       } finally {
-        if (!ignore) setLoading(false);
+        setLoading(false);
       }
     })();
-
-    return () => {
-      ignore = true;
-    };
   }, [open, preselectedPatient]);
-
-  // سرچ سروری با debounce (بدون لود انبوه)
-  useEffect(() => {
-    if (!open) return;
-
-    let ignore = false;
-
-    const run = async () => {
-      try {
-        const params = { page: 1, limit: 20 };
-        if ((search || '').trim()) params.fullName = search.trim(); // کنترلر شما fullName را می‌فهمد
-
-        const res = await api.get('/patients', { params });
-        let list = Array.isArray(res?.data?.data) ? res.data.data : [];
-
-        // اگر preselectedPatient داریم و در نتیجه نیست، آن را به ابتدای لیست اضافه کن
-        if (preselectedPatient && !list.some((p) => p._id === preselectedPatient._id)) {
-          list = [preselectedPatient, ...list];
-        }
-
-        if (!ignore) setPatients(list);
-      } catch {
-        if (!ignore) setPatients(preselectedPatient ? [preselectedPatient] : []);
-      }
-    };
-
-    const t = setTimeout(run, 300); // debounce
-    return () => {
-      ignore = true;
-      clearTimeout(t);
-    };
-  }, [open, search, preselectedPatient]);
 
   // محاسبه قیمت
   useEffect(() => {
@@ -157,7 +102,7 @@ function AppointmentCreateModal({
   }, [appointment.serviceOption, appointment.gender, appointment.serviceType, inventory, laserPrices]);
 
   const filteredPatients = Array.isArray(patients)
-    ? patients // نتایج همین الان سروری فیلتر شده‌اند؛ اینجا فقط نمایش می‌دهیم
+    ? patients.filter((p) => p.fullName?.includes(search) || p.phone?.includes(search))
     : [];
 
   const handleCreatePatient = async () => {
@@ -172,8 +117,9 @@ function AppointmentCreateModal({
       });
       setSelectedPatient(created);
       setShowNewPatient(false);
+      // لیست داخل مودال را هم آپدیت کنیم
       setPatients((prev) => [created, ...(prev || [])]);
-    } catch {
+    } catch (e) {
       alert('ثبت بیمار ناموفق بود');
     }
   };
