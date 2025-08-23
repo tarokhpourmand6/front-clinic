@@ -9,19 +9,21 @@ import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
 
+// ⬇️ جدید
+import { getCareProducts } from "../../api/careProductsApi";
+import { getFacialPackages } from "../../api/facialPackagesApi";
+
 moment.loadPersian({ dialect: "persian-modern" });
 
 const PAGE_SIZE = 20;
-
-/* ---------- helpers (normalize) ---------- */
 const fa2en = (s = "") => String(s).replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
 const normPhone = (s = "") => fa2en(s).replace(/\D/g, "");
 const normFa = (s = "") =>
   String(s)
     .trim()
-    .replace(/\u200c/g, " ") // ZWNJ → space
-    .replace(/‌/g, " ")       // نیم‌فاصله فارسی
-    .replace(/\u0640/g, "")   // tatweel
+    .replace(/\u200c/g, " ")
+    .replace(/‌/g, " ")
+    .replace(/\u0640/g, "")
     .replace(/ك/g, "ک")
     .replace(/ي/g, "ی")
     .replace(/\s+/g, " ")
@@ -42,12 +44,15 @@ export default function AppointmentCreateModal({
 
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
 
-  const [inventory, setInventory] = useState([]);
+  const [inventory, setInventory] = useState([]);      // تزریقات (انبار قبلی)
   const [laserPrices, setLaserPrices] = useState({});
+  const [careProducts, setCareProducts] = useState([]); // ⬅️ محصولات مراقبتی
+  const [facialPackages, setFacialPackages] = useState([]); // ⬅️ پکیج‌های فیشیال
+
   const [loading, setLoading] = useState(false);
 
   const [appointment, setAppointment] = useState({
-    serviceType: "تزریقات",
+    serviceType: "تزریقات", // "تزریقات" | "لیزر" | "محصولات" | "فیشیال"
     serviceOption: [],
     appointmentDate: null,
     appointmentHour: "08",
@@ -63,16 +68,18 @@ export default function AppointmentCreateModal({
   );
   const minutes = ["00", "10", "20", "30", "40", "50"];
 
-  /* ---------- initial load ---------- */
+  // ————— initial load
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
-        const [prod, laser, pts] = await Promise.all([
-          getAllProducts(),
+        const [prod, laser, pts, cp, fp] = await Promise.all([
+          getAllProducts(),     // اقلام تزریقی با sellPrice
           getLaserPrices(),
-          getPatientsFast(), // یک درخواست با limit=5000
+          getPatientsFast(),
+          getCareProducts(),    // ⬅️ محصولات مراقبتی
+          getFacialPackages(),  // ⬅️ پکیج‌های فیشیال
         ]);
 
         setInventory(prod || []);
@@ -83,7 +90,9 @@ export default function AppointmentCreateModal({
         });
         setLaserPrices(priceMap);
 
-        // نرمال کردن لیست برای جست‌وجوی سریع
+        setCareProducts(Array.isArray(cp) ? cp : []);
+        setFacialPackages(Array.isArray(fp) ? fp : []);
+
         const rawList = Array.isArray(pts) ? pts : [];
         const list = rawList.map((p) => ({
           ...p,
@@ -92,7 +101,6 @@ export default function AppointmentCreateModal({
         }));
         setAllPatients(list);
 
-        // خروجی اولیه
         setSearch("");
         setPage(1);
         const first = list.slice(0, PAGE_SIZE);
@@ -106,7 +114,7 @@ export default function AppointmentCreateModal({
     })();
   }, [open, preselectedPatient]);
 
-  /* ---------- client-side search (debounced) ---------- */
+  // ————— client search
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
@@ -146,57 +154,227 @@ export default function AppointmentCreateModal({
     setHasMore(nextSlice.length < filtered.length);
   };
 
-  /* ---------- price calc ---------- */
+  // ————— price calc
   useEffect(() => {
     let total = 0;
+
     if (appointment.serviceType === "تزریقات") {
       (appointment.serviceOption || []).forEach(({ name, amount }) => {
         const found = (inventory || []).find((i) => i.name === name);
         if (found?.sellPrice) total += Number(found.sellPrice) * (Number(amount) || 1);
       });
-    } else {
+    } else if (appointment.serviceType === "لیزر") {
       (appointment.serviceOption || []).forEach((area) => {
         const price = laserPrices[`${appointment.gender}-${area}`];
         if (price) total += price;
       });
+    } else if (appointment.serviceType === "محصولات") {
+      // [{ id, qty }]
+      (appointment.serviceOption || []).forEach(({ id, qty }) => {
+        const p = (careProducts || []).find((x) => x._id === id);
+        if (p?.sellPrice) total += Number(p.sellPrice) * (Number(qty) || 1);
+      });
+    } else if (appointment.serviceType === "فیشیال") {
+      // [{ id, qty }]
+      (appointment.serviceOption || []).forEach(({ id, qty }) => {
+        const pkg = (facialPackages || []).find((x) => x._id === id);
+        if (pkg?.price) total += Number(pkg.price) * (Number(qty) || 1);
+      });
     }
+
     setAppointment((s) => ({ ...s, price: total }));
-  }, [appointment.serviceOption, appointment.gender, appointment.serviceType, inventory, laserPrices]);
+  }, [
+    appointment.serviceOption,
+    appointment.gender,
+    appointment.serviceType,
+    inventory,
+    laserPrices,
+    careProducts,
+    facialPackages,
+  ]);
 
   if (!open) return null;
 
+  // ————— submit
   const handleSubmit = async () => {
-    if (!selectedPatient?._id || !appointment.appointmentDate) {
-      alert("اطلاعات ناقص است.");
+    if (!selectedPatient?._id) {
+      alert("بیمار انتخاب نشده است.");
       return;
     }
-    const dateStr = moment(
-      `${appointment.appointmentDate.year}/${appointment.appointmentDate.month}/${appointment.appointmentDate.day}`,
-      "jYYYY/jM/jD"
-    ).format("jYYYY-jMM-jDD");
 
-    const payload = {
+    // برای محصولات تاریخ/ساعت را از فرم نمی‌گیریم → مقدار پیش‌فرض امروز/الان
+    const needsDate = appointment.serviceType !== "محصولات";
+    const chosenDate = appointment.appointmentDate;
+
+    if (needsDate && !chosenDate) {
+      alert("تاریخ نوبت را انتخاب کنید.");
+      return;
+    }
+
+    const jDate = needsDate
+      ? moment(
+          `${chosenDate.year}/${chosenDate.month}/${chosenDate.day}`,
+          "jYYYY/jM/jD"
+        ).format("jYYYY-jMM-jDD")
+      : moment().format("jYYYY-jMM-jDD"); // برای محصولات
+
+    const timeStr = needsDate
+      ? `${appointment.appointmentHour}:${appointment.appointmentMinute}`
+      : moment().format("HH:mm");
+
+    let payload = {
       patientId: selectedPatient._id,
-      dateShamsi: dateStr,
-      time: `${appointment.appointmentHour}:${appointment.appointmentMinute}`,
-      type: appointment.serviceType === "تزریقات" ? "Injection" : "Laser",
+      dateShamsi: jDate,
+      time: timeStr,
       status: appointment.status,
       price: appointment.price,
-      consumables: appointment.serviceType === "تزریقات" ? appointment.serviceOption : [],
-      laserAreas:
-        appointment.serviceType === "لیزر"
-          ? appointment.serviceOption.map((a) => ({ area: a, gender: appointment.gender }))
-          : [],
     };
+
+    if (appointment.serviceType === "تزریقات") {
+      payload = {
+        ...payload,
+        type: "Injection",
+        consumables: appointment.serviceOption, // [{name,amount}]
+        laserAreas: [],
+      };
+    } else if (appointment.serviceType === "لیزر") {
+      payload = {
+        ...payload,
+        type: "Laser",
+        laserAreas: appointment.serviceOption.map((a) => ({ area: a, gender: appointment.gender })),
+        consumables: [],
+      };
+    } else if (appointment.serviceType === "محصولات") {
+      payload = {
+        ...payload,
+        type: "CareProductSale",
+        products: (appointment.serviceOption || []).map(({ id, qty }) => {
+          const p = (careProducts || []).find((x) => x._id === id);
+          return {
+            productId: id,
+            qty: Number(qty) || 1,
+            unitPrice: Number(p?.sellPrice) || 0,
+          };
+        }),
+      };
+    } else if (appointment.serviceType === "فیشیال") {
+      payload = {
+        ...payload,
+        type: "Facial",
+        facials: (appointment.serviceOption || []).map(({ id, qty }) => {
+          const pkg = (facialPackages || []).find((x) => x._id === id);
+          return {
+            packageId: id,
+            qty: Number(qty) || 1,
+            unitPrice: Number(pkg?.price) || 0,
+          };
+        }),
+      };
+    }
 
     try {
       await createAppointment(payload);
       onSuccess?.();
       onClose?.();
     } catch {
-      alert("⛔️ خطا در ثبت نوبت");
+      alert("⛔️ خطا در ثبت");
     }
   };
+
+  // ————— کوچک‌کامپوننت‌ها: انتخاب محصول و فیشیال
+  const ProductPicker = () => (
+    <div className="mb-4">
+      <label className="text-sm block mb-1">انتخاب محصولات:</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+        {(careProducts || []).map((p) => {
+          const chosen = (appointment.serviceOption || []).find((x) => x.id === p._id);
+          return (
+            <div key={p._id} className="flex items-center gap-2 border p-2 rounded">
+              <input
+                type="checkbox"
+                checked={!!chosen}
+                onChange={(e) => {
+                  let next = [...(appointment.serviceOption || [])];
+                  if (e.target.checked) next.push({ id: p._id, qty: 1 });
+                  else next = next.filter((x) => x.id !== p._id);
+                  setAppointment((s) => ({ ...s, serviceOption: next }));
+                }}
+              />
+              <div className="flex-1">
+                <div className="font-medium">{p.name}{p.brand ? ` — ${p.brand}` : ""}</div>
+                <div className="text-xs text-gray-500">
+                  فروش: {(p.sellPrice ?? 0).toLocaleString("fa-IR")}
+                </div>
+              </div>
+              {!!chosen && (
+                <input
+                  type="number"
+                  min="1"
+                  value={chosen.qty}
+                  onChange={(e) => {
+                    const qty = Number(e.target.value) || 1;
+                    const next = (appointment.serviceOption || []).map((x) =>
+                      x.id === p._id ? { ...x, qty } : x
+                    );
+                    setAppointment((s) => ({ ...s, serviceOption: next }));
+                  }}
+                  className="w-16 border p-1 text-sm rounded text-center"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const FacialPicker = () => (
+    <div className="mb-4">
+      <label className="text-sm block mb-1">انتخاب پکیج‌های فیشیال:</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+        {(facialPackages || []).map((pkg) => {
+          const chosen = (appointment.serviceOption || []).find((x) => x.id === pkg._id);
+          return (
+            <div key={pkg._id} className="flex items-center gap-2 border p-2 rounded">
+              <input
+                type="checkbox"
+                checked={!!chosen}
+                onChange={(e) => {
+                  let next = [...(appointment.serviceOption || [])];
+                  if (e.target.checked) next.push({ id: pkg._id, qty: 1 });
+                  else next = next.filter((x) => x.id !== pkg._id);
+                  setAppointment((s) => ({ ...s, serviceOption: next }));
+                }}
+              />
+              <div className="flex-1">
+                <div className="font-medium">{pkg.name}</div>
+                <div className="text-xs text-gray-500">
+                  قیمت: {(pkg.price ?? 0).toLocaleString("fa-IR")}
+                </div>
+              </div>
+              {!!chosen && (
+                <input
+                  type="number"
+                  min="1"
+                  value={chosen.qty}
+                  onChange={(e) => {
+                    const qty = Number(e.target.value) || 1;
+                    const next = (appointment.serviceOption || []).map((x) =>
+                      x.id === pkg._id ? { ...x, qty } : x
+                    );
+                    setAppointment((s) => ({ ...s, serviceOption: next }));
+                  }}
+                  className="w-16 border p-1 text-sm rounded text-center"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const showDateTime = appointment.serviceType !== "محصولات";
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
@@ -264,10 +442,12 @@ export default function AppointmentCreateModal({
                   >
                     <option value="تزریقات">تزریقات</option>
                     <option value="لیزر">لیزر</option>
+                    <option value="محصولات">محصولات</option>
+                    <option value="فیشیال">فیشیال</option>
                   </select>
                 </div>
 
-                {appointment.serviceType === "تزریقات" ? (
+                {appointment.serviceType === "تزریقات" && (
                   <div className="mb-4">
                     <label className="text-sm block mb-1">انتخاب تزریقات:</label>
                     <div className="grid grid-cols-2 gap-2 text-sm">
@@ -307,7 +487,9 @@ export default function AppointmentCreateModal({
                       })}
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {appointment.serviceType === "لیزر" && (
                   <>
                     <div className="mb-4">
                       <label className="text-sm">جنسیت:</label>
@@ -330,44 +512,54 @@ export default function AppointmentCreateModal({
                   </>
                 )}
 
-                <div className="mb-3">
-                  <label className="text-sm">تاریخ نوبت:</label>
-                  <DatePicker
-                    value={appointment.appointmentDate}
-                    onChange={(date) => setAppointment((s) => ({ ...s, appointmentDate: date }))}
-                    inputPlaceholder="تاریخ"
-                    locale="fa"
-                    inputClassName="border p-2 rounded w-full"
-                  />
-                </div>
+                {appointment.serviceType === "محصولات" && <ProductPicker />}
 
-                <div className="mb-4 flex gap-2">
-                  <div className="w-1/2">
-                    <label className="text-sm">دقیقه:</label>
-                    <select
-                      value={appointment.appointmentMinute}
-                      onChange={(e) => setAppointment((s) => ({ ...s, appointmentMinute: e.target.value }))}
-                      className="border p-2 rounded w-full"
-                    >
-                      {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="w-1/2">
-                    <label className="text-sm">ساعت:</label>
-                    <select
-                      value={appointment.appointmentHour}
-                      onChange={(e) => setAppointment((s) => ({ ...s, appointmentHour: e.target.value }))}
-                      className="border p-2 rounded w-full"
-                    >
-                      {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </div>
-                </div>
+                {appointment.serviceType === "فیشیال" && <FacialPicker />}
+
+                {showDateTime && (
+                  <>
+                    <div className="mb-3">
+                      <label className="text-sm">تاریخ نوبت:</label>
+                      <DatePicker
+                        value={appointment.appointmentDate}
+                        onChange={(date) => setAppointment((s) => ({ ...s, appointmentDate: date }))}
+                        inputPlaceholder="تاریخ"
+                        locale="fa"
+                        inputClassName="border p-2 rounded w-full"
+                      />
+                    </div>
+
+                    <div className="mb-4 flex gap-2">
+                      <div className="w-1/2">
+                        <label className="text-sm">دقیقه:</label>
+                        <select
+                          value={appointment.appointmentMinute}
+                          onChange={(e) => setAppointment((s) => ({ ...s, appointmentMinute: e.target.value }))}
+                          className="border p-2 rounded w-full"
+                        >
+                          {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div className="w-1/2">
+                        <label className="text-sm">ساعت:</label>
+                        <select
+                          value={appointment.appointmentHour}
+                          onChange={(e) => setAppointment((s) => ({ ...s, appointmentHour: e.target.value }))}
+                          className="border p-2 rounded w-full"
+                        >
+                          {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">مبلغ کل: {appointment.price?.toLocaleString("fa-IR")}</div>
+                  <div className="text-sm text-gray-600">
+                    مبلغ کل: {appointment.price?.toLocaleString("fa-IR")}
+                  </div>
                   <button onClick={handleSubmit} className="bg-brand text-white px-4 py-2 rounded">
-                    ثبت نوبت
+                    {appointment.serviceType === "محصولات" ? "ثبت فروش" : "ثبت نوبت"}
                   </button>
                 </div>
               </>
