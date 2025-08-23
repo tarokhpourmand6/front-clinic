@@ -49,6 +49,7 @@ export default function AppointmentList() {
   const [paymentOpen, setPaymentOpen] = useState(false);
 
   const [selectedPaymentDetails, setSelectedPaymentDetails] = useState([]);
+  the
   const [selectedInitialPrice, setSelectedInitialPrice] = useState(0);
 
   // مودال ثبت نوبت
@@ -75,19 +76,18 @@ export default function AppointmentList() {
 
   // ----- فیلتر اصلی لیست -----
   const filtered = appointments.filter((a) => {
-    const nameMatch = a.patientId?.fullName?.includes(filters.name);
+    const nameMatch  = a.patientId?.fullName?.includes(filters.name);
     const phoneMatch = a.patientId?.phone?.includes(filters.phone);
-    const dateMatch = filters.date
-      ? a.dateShamsi ===
-        `${filters.date.year}-${String(filters.date.month).padStart(2, '0')}-${String(filters.date.day).padStart(2, '0')}`
+    const dateMatch  = filters.date
+      ? a.dateShamsi === `${filters.date.year}-${String(filters.date.month).padStart(2,'0')}-${String(filters.date.day).padStart(2,'0')}`
       : true;
     return nameMatch && phoneMatch && dateMatch;
   });
 
-  // حالا که filtered داریم، بقیه ساب‌لیست‌ها را بسازیم
+  // زیرلیست‌ها
   const injectionAppointments = filtered.filter((a) => a.type === 'Injection');
   const laserAppointments     = filtered.filter((a) => a.type === 'Laser');
-  const productSales          = filtered.filter((a) => a.type === 'CareProductSale'); // ← اینجا منتقل شد
+  const productSales          = filtered.filter((a) => a.type === 'CareProductSale');
 
   const summary = {
     total: filtered.length,
@@ -98,7 +98,8 @@ export default function AppointmentList() {
 
   const handleStatusChange = async (appointmentId, newStatus) => {
     const mapped =
-      newStatus === 'done' ? 'Completed' : newStatus === 'pending' ? 'Scheduled' : 'Canceled';
+      newStatus === 'done' ? 'Completed' :
+      newStatus === 'pending' ? 'Scheduled' : 'Canceled';
     await updateAppointmentItem(appointmentId, { status: mapped });
 
     if (newStatus === 'done') {
@@ -111,9 +112,7 @@ export default function AppointmentList() {
   };
 
   const handlePriceChange = async (appointmentId, val) => {
-    const cleaned = val
-      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
-      .replace(/[^0-9]/g, '');
+    const cleaned = val.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^0-9]/g, '');
     await updateAppointmentItem(appointmentId, { price: Number(cleaned) });
   };
 
@@ -122,17 +121,25 @@ export default function AppointmentList() {
   };
 
   const handleDateChange = async (appointmentId, dateObj) => {
-    const dateShamsi = `${dateObj.year}-${String(dateObj.month).padStart(2, '0')}-${String(
-      dateObj.day
-    ).padStart(2, '0')}`;
+    const dateShamsi = `${dateObj.year}-${String(dateObj.month).padStart(2,'0')}-${String(dateObj.day).padStart(2,'0')}`;
     await updateAppointmentItem(appointmentId, { dateShamsi });
   };
 
   const handleDelete = async (id) => {
     await deleteAppointmentItem(id);
+    await fetchAppointments();
   };
 
-  // کلیک روی نام بیمار در جدول‌ها → باز شدن مودال ثبت نوبت با بیمار انتخاب‌شده
+  // 👇 مخصوص جدول فروش محصولات: ویرایش خطوط فروش
+  const handleUpdateSale = async (appointmentId, nextProducts, nextTotal) => {
+    await updateAppointmentItem(appointmentId, {
+      products: nextProducts,
+      price: Number(nextTotal) || 0,
+    });
+    await fetchAppointments();
+  };
+
+  // کلیک روی نام بیمار → باز شدن مودال نوبت با بیمار انتخاب‌شده
   const handlePatientClick = (patient) => {
     setCreateModalPatient(patient);
     setCreateModalOpen(true);
@@ -213,9 +220,10 @@ export default function AppointmentList() {
       <CareProductSalesTable
         data={productSales}
         onDateChange={handleDateChange}
-        onDelete={handleDelete}
+        onDelete={handleDelete}                 // حذف کل رکورد فروش (در صورت نیاز می‌تونی جداش کنی)
         onOpenPaymentModal={handleOpenPaymentModal}
         onPatientClick={handlePatientClick}
+        onUpdateSale={handleUpdateSale}         // 👈 مهم برای تغییر تعداد/حذف یک قلم
       />
 
       {/* ── مودال‌های اقلام/لیزر/پرداخت ── */}
