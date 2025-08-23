@@ -34,6 +34,7 @@ export default function AppointmentCreateModal({
   onClose,
   preselectedPatient,
   onSuccess,
+  onCreated,
   onOpenPatientCreate,
 }) {
   const [allPatients, setAllPatients] = useState([]);
@@ -283,9 +284,25 @@ export default function AppointmentCreateModal({
     }
 
     try {
-      await createAppointment(payload);
+          const res = await createAppointment(payload);
+    // خروجی ایمن: بعضی APIها {ok, data} می‌دهند و بعضی مستقیم آبجکت نوبت:
+    const appt = res?.data ?? res;
+    // اگر فروش محصول بود: بلافاصله پرداخت را باز کن
+    if (appointment.serviceType === "محصولات" && appt?._id) {
+      onCreated?.({
+        id: appt._id,
+        price: Number(appt.price) || 0,
+        paymentDetails: Array.isArray(appt.paymentDetails) ? appt.paymentDetails : [],
+      });
+      // همزمان لیست را تازه کن
       onSuccess?.();
+      // و مودال ثبت را هم ببند
       onClose?.();
+      return;
+    }
+    // سایر سرویس‌ها مثل قبل
+    onSuccess?.();
+    onClose?.();
     } catch {
       alert("⛔️ خطا در ثبت");
     }

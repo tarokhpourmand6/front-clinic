@@ -270,6 +270,12 @@ export default function AppointmentList() {
         preselectedPatient={createModalPatient}
         onSuccess={fetchAppointments}
         onOpenPatientCreate={() => setPatientModalOpen(true)}
+        onCreated={(info) => {
+        // info: { id, price, paymentDetails }
+        handleOpenPaymentModal(info.id, info.paymentDetails, info.price);
+        // Optionally: پس از باز شدن مودال پرداخت، لیست را رفرش کن
+        fetchAppointments();
+      }}
       />
 
       {/* مودال ثبت بیمار */}
