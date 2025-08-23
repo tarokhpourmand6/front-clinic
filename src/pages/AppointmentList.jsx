@@ -12,6 +12,7 @@ import LaserTable from '../components/appointments/LaserTable';
 import LoadingSpinner from '../components/LoadingSpinner';
 import PaymentModal from '../components/appointments/PaymentModal';
 import { getPaymentMethods } from '../api/paymentMethodApi';
+import CareProductSalesTable from '../components/appointments/CareProductSalesTable';
 
 // 🔹 مودال‌های جدید (جداگانه)
 import AppointmentCreateModal from '../components/modals/AppointmentCreateModal';
@@ -53,6 +54,8 @@ export default function AppointmentList() {
   // 🔹 مودال ثبت نوبت
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalPatient, setCreateModalPatient] = useState(null);
+
+const productSales = filtered.filter((a) => a.type === 'CareProductSale');
 
   // 🔹 مودال ثبت بیمار
   const [patientModalOpen, setPatientModalOpen] = useState(false);
@@ -204,6 +207,14 @@ export default function AppointmentList() {
         onOpenPaymentModal={handleOpenPaymentModal}
         onPatientClick={handlePatientClick}
       />
+
+<CareProductSalesTable
+  data={productSales}
+  onDateChange={handleDateChange}
+  onDelete={handleDelete}
+  onOpenPaymentModal={handleOpenPaymentModal}
+  onPatientClick={handlePatientClick}
+/>
 
       {/* ── مودال‌های اقلام/لیزر/پرداخت (بدون تغییر) ── */}
       <ConsumablesModal

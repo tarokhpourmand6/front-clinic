@@ -7,6 +7,7 @@ import CareProductsManager from "../components/finance/CareProductsManager";   /
 import FacialPackagesManager from "../components/finance/FacialPackagesManager"; // 👈 جدید
 import ErrorBoundary from "../components/common/ErrorBoundary";
 
+
 export default function FinancePage() {
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
