@@ -9,12 +9,12 @@ import Filters from '../components/appointments/Filters';
 import SummaryBox from '../components/appointments/SummaryBox';
 import InjectionTable from '../components/appointments/InjectionTable';
 import LaserTable from '../components/appointments/LaserTable';
+import CareProductSalesTable from '../components/appointments/CareProductSalesTable';
 import LoadingSpinner from '../components/LoadingSpinner';
 import PaymentModal from '../components/appointments/PaymentModal';
 import { getPaymentMethods } from '../api/paymentMethodApi';
-import CareProductSalesTable from '../components/appointments/CareProductSalesTable';
 
-// 🔹 مودال‌های جدید (جداگانه)
+// مودال‌ها
 import AppointmentCreateModal from '../components/modals/AppointmentCreateModal';
 import PatientCreateModal from '../components/modals/PatientCreateModal';
 
@@ -51,13 +51,11 @@ export default function AppointmentList() {
   const [selectedPaymentDetails, setSelectedPaymentDetails] = useState([]);
   const [selectedInitialPrice, setSelectedInitialPrice] = useState(0);
 
-  // 🔹 مودال ثبت نوبت
+  // مودال ثبت نوبت
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalPatient, setCreateModalPatient] = useState(null);
 
-const productSales = filtered.filter((a) => a.type === 'CareProductSale');
-
-  // 🔹 مودال ثبت بیمار
+  // مودال ثبت بیمار
   const [patientModalOpen, setPatientModalOpen] = useState(false);
 
   useEffect(() => {
@@ -66,15 +64,16 @@ const productSales = filtered.filter((a) => a.type === 'CareProductSale');
       await fetchAppointments();
       try {
         const methods = await getPaymentMethods();
-        setPaymentMethods(methods);
+        setPaymentMethods(Array.isArray(methods) ? methods : []);
       } catch (err) {
-        console.error('Failed to load payment methods:', err.message);
+        console.error('Failed to load payment methods:', err?.message || err);
       }
       setLoading(false);
     };
     fetchWithLoading();
   }, []);
 
+  // ----- فیلتر اصلی لیست -----
   const filtered = appointments.filter((a) => {
     const nameMatch = a.patientId?.fullName?.includes(filters.name);
     const phoneMatch = a.patientId?.phone?.includes(filters.phone);
@@ -85,15 +84,17 @@ const productSales = filtered.filter((a) => a.type === 'CareProductSale');
     return nameMatch && phoneMatch && dateMatch;
   });
 
+  // حالا که filtered داریم، بقیه ساب‌لیست‌ها را بسازیم
+  const injectionAppointments = filtered.filter((a) => a.type === 'Injection');
+  const laserAppointments     = filtered.filter((a) => a.type === 'Laser');
+  const productSales          = filtered.filter((a) => a.type === 'CareProductSale'); // ← اینجا منتقل شد
+
   const summary = {
     total: filtered.length,
     done: filtered.filter((a) => a.status === 'done' || a.status === 'Completed').length,
     pending: filtered.filter((a) => a.status === 'pending' || a.status === 'Scheduled').length,
     canceled: filtered.filter((a) => a.status === 'canceled' || a.status === 'Canceled').length,
   };
-
-  const injectionAppointments = filtered.filter((a) => a.type === 'Injection');
-  const laserAppointments = filtered.filter((a) => a.type === 'Laser');
 
   const handleStatusChange = async (appointmentId, newStatus) => {
     const mapped =
@@ -131,13 +132,13 @@ const productSales = filtered.filter((a) => a.type === 'CareProductSale');
     await deleteAppointmentItem(id);
   };
 
-  // ✅ کلیک روی نام بیمار در جدول‌ها → باز شدن مودال ثبت نوبت با بیمار از قبل انتخاب‌شده
+  // کلیک روی نام بیمار در جدول‌ها → باز شدن مودال ثبت نوبت با بیمار انتخاب‌شده
   const handlePatientClick = (patient) => {
     setCreateModalPatient(patient);
     setCreateModalOpen(true);
   };
 
-  // ✅ دکمه «ثبت نوبت جدید»
+  // دکمه «ثبت نوبت جدید»
   const openCreateBlank = () => {
     setCreateModalPatient(null);
     setCreateModalOpen(true);
@@ -155,8 +156,8 @@ const productSales = filtered.filter((a) => a.type === 'CareProductSale');
 
   const handleOpenPaymentModal = (appointmentId, paymentDetails, price) => {
     setSelectedAppointmentId(appointmentId);
-    setSelectedPaymentDetails(paymentDetails);
-    setSelectedInitialPrice(price);
+    setSelectedPaymentDetails(paymentDetails || []);
+    setSelectedInitialPrice(Number(price) || 0);
     setPaymentOpen(true);
   };
 
@@ -208,15 +209,16 @@ const productSales = filtered.filter((a) => a.type === 'CareProductSale');
         onPatientClick={handlePatientClick}
       />
 
-<CareProductSalesTable
-  data={productSales}
-  onDateChange={handleDateChange}
-  onDelete={handleDelete}
-  onOpenPaymentModal={handleOpenPaymentModal}
-  onPatientClick={handlePatientClick}
-/>
+      {/* جدول فروش محصولات مراقبتی */}
+      <CareProductSalesTable
+        data={productSales}
+        onDateChange={handleDateChange}
+        onDelete={handleDelete}
+        onOpenPaymentModal={handleOpenPaymentModal}
+        onPatientClick={handlePatientClick}
+      />
 
-      {/* ── مودال‌های اقلام/لیزر/پرداخت (بدون تغییر) ── */}
+      {/* ── مودال‌های اقلام/لیزر/پرداخت ── */}
       <ConsumablesModal
         isOpen={consumablesOpen}
         onClose={() => setConsumablesOpen(false)}
@@ -252,21 +254,20 @@ const productSales = filtered.filter((a) => a.type === 'CareProductSale');
         onSave={handlePaymentChange}
       />
 
-      {/* ── مودال ثبت نوبت ── */}
+      {/* مودال ثبت نوبت */}
       <AppointmentCreateModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         preselectedPatient={createModalPatient}
         onSuccess={fetchAppointments}
-        onOpenPatientCreate={() => setPatientModalOpen(true)} // 👈 دکمه «+ ثبت بیمار»
+        onOpenPatientCreate={() => setPatientModalOpen(true)}
       />
 
-      {/* ── مودال ثبت بیمار ── */}
+      {/* مودال ثبت بیمار */}
       <PatientCreateModal
         open={patientModalOpen}
         onClose={() => setPatientModalOpen(false)}
         onCreated={(p) => {
-          // بعد از ساخت بیمار، او را به‌صورت پیش‌فرض داخل مودال نوبت انتخاب کن
           setCreateModalPatient(p);
           setPatientModalOpen(false);
           setCreateModalOpen(true);
