@@ -4,7 +4,7 @@ import moment from "moment-jalaali";
 import DatePicker from "../DatePicker/DatePicker";
 import LaserAreaSelector from "../LaserAreaSelector";
 import LoadingSpinner from "../LoadingSpinner";
-import { getPatientsQuick } from "../../api/patients";
+import { getPatientsFast } from "../../api/patients";
 import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
@@ -72,7 +72,7 @@ export default function AppointmentCreateModal({
         const [prod, laser, pts] = await Promise.all([
           getAllProducts(),
           getLaserPrices(),
-          getPatientsQuick(), // یک درخواست با limit=5000
+          getPatientsFast(), // یک درخواست با limit=5000
         ]);
 
         setInventory(prod || []);

@@ -1,32 +1,36 @@
 // src/api/patients.js
 import api from "./axios";
 
-const PAGE_SIZE = 200;
-const MAX_PAGES_SAFE = 200;
+const PAGE_SIZE = 200;       // سقف امن بک‌اند
+const MAX_PAGES_SAFE = 200;  // برای جلوگیری از لوپ بی‌نهایت
 
 /* ---------- helpers ---------- */
+// آرایه‌ی بیماران را صرف‌نظر از شکل پاسخ برمی‌گرداند
 const normalizeList = (body) => {
-  // 1) حالت دولایه: { status, message, data: { data: [...] } }
+  // 1) دولایه: { status, message, data: { data: [...] } }
   if (Array.isArray(body?.data?.data)) return body.data.data;
-  // 2) حالت تک‌لایه: { data: [...] }
+  // 2) تک‌لایه: { data: [...] }
   if (Array.isArray(body?.data)) return body.data;
-  // 3) آرایه‌ی خام
+  // 3) آرایه خام
   if (Array.isArray(body)) return body;
   return [];
 };
 
-const num = (v, fb) => (Number.isFinite(+v) ? +v : fb);
+const toNum = (v, fb) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fb;
+};
 
-// meta را هم از هر دو حالت بخوانیم
+// متادیتا را (چه در ریشه چه در data) بخوان
 const parsePaged = (body, { page, limit }) => {
-  const wrapper = body?.data && typeof body.data === "object" ? body.data : body; // لایه داخلی اگر بود
+  const meta = body?.data && typeof body.data === "object" ? body.data : body;
   const data = normalizeList(body);
   return {
     data,
-    currentPage: num(wrapper?.currentPage, page),
-    totalPages: num(wrapper?.totalPages, 1),
-    totalItems: num(wrapper?.totalItems ?? wrapper?.total, data.length),
-    pageSize: num(wrapper?.pageSize, limit),
+    currentPage: toNum(meta?.currentPage, page),
+    totalPages: toNum(meta?.totalPages, 1),
+    totalItems: toNum(meta?.totalItems ?? meta?.total, data.length),
+    pageSize: toNum(meta?.pageSize, limit),
   };
 };
 
@@ -57,7 +61,7 @@ export const getPatientsPaged = async (params = {}) => {
   return parsePaged(res?.data ?? {}, { page, limit });
 };
 
-/* ---------- Load-all (paged loop) ---------- */
+/* ---------- Load-all (loop) ---------- */
 export const getPatients = async (params = {}) => {
   const { q, hasPhone, tag } = params;
   let all = [];
@@ -72,8 +76,9 @@ export const getPatients = async (params = {}) => {
       hasPhone,
       tag,
     });
+
     if (!Array.isArray(data) || data.length === 0) {
-      totalPages = currentPage;
+      totalPages = currentPage; // پایان
       break;
     }
     all = all.concat(data);
@@ -83,13 +88,33 @@ export const getPatients = async (params = {}) => {
   return all;
 };
 
-/* ---------- Fast (single request, limit=5000) ---------- */
-export const getPatientsQuick = async () => {
-  const res = await api.get("/patients", { params: { page: 1, limit: 5000 } });
-  // همان پارسِ یکسان
-  const { data } = parsePaged(res?.data ?? {}, { page: 1, limit: 5000 });
-  return data;
+/* ---------- Fast (parallel) ----------
+   همه صفحات را به‌صورت موازی می‌آورد؛ برای مودال عالی است */
+export const getPatientsFast = async ({ q, hasPhone, tag } = {}) => {
+  // صفحه 1 برای فهمیدن totalPages
+  const first = await api.get("/patients", {
+    params: { page: 1, limit: PAGE_SIZE, q, hasPhone, tag },
+  });
+  const parsedFirst = parsePaged(first?.data ?? {}, { page: 1, limit: PAGE_SIZE });
+  const firstList = parsedFirst.data;
+  const totalPages = Math.min(toNum(parsedFirst.totalPages, 1), MAX_PAGES_SAFE);
+
+  if (totalPages <= 1) return firstList;
+
+  // صفحات 2..N موازی
+  const pages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+  const reqs = pages.map((p) =>
+    api
+      .get("/patients", { params: { page: p, limit: PAGE_SIZE, q, hasPhone, tag } })
+      .then((r) => parsePaged(r?.data ?? {}, { page: p, limit: PAGE_SIZE }).data)
+      .catch(() => [])
+  );
+  const rest = await Promise.all(reqs);
+  return firstList.concat(...rest);
 };
+
+// اگر جایی هنوز اسم قبلی را صدا می‌زند:
+export const getAllPatients = getPatients;
 
 /* ---------- Single & mutations ---------- */
 export const getPatientByPhone = async (phone) => {
@@ -108,7 +133,8 @@ export const createPatient = async (patient) => {
     address: patient.address || "",
     tag: patient.tag || "",
     notes: patient.notes || "",
-    photos: { before: [], after: [] },
+  // بک‌اند خودش پیش‌فرضِ photos دارد؛ ارسالش اختیاری است
+    photos: patient.photos || { before: [], after: [] },
   };
 
   const res = await api.post("/patients", payload);
