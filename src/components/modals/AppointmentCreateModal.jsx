@@ -169,10 +169,14 @@ export default function AppointmentCreateModal({
         if (price) total += price;
       });
     } else if (appointment.serviceType === "محصولات") {
-      // [{ id, qty }]  // توجه: فیلد درست "salePrice" است
-      (appointment.serviceOption || []).forEach(({ id, qty }) => {
-        const p = (careProducts || []).find((x) => x._id === id);
-        if (p?.salePrice) total += Number(p.salePrice) * (Number(qty) || 1);
+      // [{ id, qty, unitPrice? }]
+      (appointment.serviceOption || []).forEach(({ id, qty, unitPrice }) => {
+        let price = Number(unitPrice);
+        if (!Number.isFinite(price)) {
+          const p = (careProducts || []).find((x) => x._id === id);
+          price = Number(p?.sellPrice) || 0; // 👈 sellPrice
+        }
+        total += price * (Number(qty) || 1);
       });
     } else if (appointment.serviceType === "فیشیال") {
       (appointment.serviceOption || []).forEach(({ id, qty }) => {
@@ -201,7 +205,7 @@ export default function AppointmentCreateModal({
       return;
     }
 
-    // حالا: تاریخ برای همه‌ی سرویس‌ها الزامی است (حتی محصولات)، ساعت فقط برای «محصولات» لازم نیست
+    // تاریخ برای همه‌ی سرویس‌ها لازم است؛ ساعت فقط برای «محصولات» لازم نیست
     const chosenDate = appointment.appointmentDate;
     if (!chosenDate) {
       alert(appointment.serviceType === "محصولات" ? "تاریخ فروش را انتخاب کنید." : "تاریخ نوبت را انتخاب کنید.");
@@ -209,12 +213,7 @@ export default function AppointmentCreateModal({
     }
 
     // چک انتخاب‌ها
-    if (
-      (appointment.serviceType === "تزریقات" && !(appointment.serviceOption || []).length) ||
-      (appointment.serviceType === "لیزر" && !(appointment.serviceOption || []).length) ||
-      (appointment.serviceType === "محصولات" && !(appointment.serviceOption || []).length) ||
-      (appointment.serviceType === "فیشیال" && !(appointment.serviceOption || []).length)
-    ) {
+    if (!(appointment.serviceOption || []).length) {
       alert("هیچ موردی انتخاب نشده است.");
       return;
     }
@@ -255,12 +254,16 @@ export default function AppointmentCreateModal({
       payload = {
         ...payload,
         type: "CareProductSale",
-        products: (appointment.serviceOption || []).map(({ id, qty }) => {
-          const p = (careProducts || []).find((x) => x._id === id);
+        products: (appointment.serviceOption || []).map(({ id, qty, unitPrice }) => {
+          let price = Number(unitPrice);
+          if (!Number.isFinite(price)) {
+            const p = (careProducts || []).find((x) => x._id === id);
+            price = Number(p?.sellPrice) || 0; // 👈 sellPrice
+          }
           return {
             productId: id,
             qty: Number(qty) || 1,
-            unitPrice: Number(p?.salePrice) || 0, // ✅ salePrice
+            unitPrice: price,
           };
         }),
       };
@@ -302,15 +305,24 @@ export default function AppointmentCreateModal({
                 checked={!!chosen}
                 onChange={(e) => {
                   let next = [...(appointment.serviceOption || [])];
-                  if (e.target.checked) next.push({ id: p._id, qty: 1 });
-                  else next = next.filter((x) => x.id !== p._id);
+                  if (e.target.checked) {
+                    next.push({
+                      id: p._id,
+                      qty: 1,
+                      unitPrice: Number(p?.sellPrice) || 0, // 👈 ذخیره‌ی قیمت واحد
+                    });
+                  } else {
+                    next = next.filter((x) => x.id !== p._id);
+                  }
                   setAppointment((s) => ({ ...s, serviceOption: next }));
                 }}
               />
               <div className="flex-1">
-                <div className="font-medium">{p.name}{p.brand ? ` — ${p.brand}` : ""}</div>
+                <div className="font-medium">
+                  {p.name}{p.brand ? ` — ${p.brand}` : ""}
+                </div>
                 <div className="text-xs text-gray-500">
-                  فروش: {(p.salePrice ?? 0).toLocaleString("fa-IR")}{/* ✅ salePrice */}
+                  فروش: {(Number(p?.sellPrice) || 0).toLocaleString("fa-IR")}
                 </div>
               </div>
               {!!chosen && (
@@ -355,7 +367,9 @@ export default function AppointmentCreateModal({
               />
               <div className="flex-1">
                 <div className="font-medium">{pkg.name}</div>
-                <div className="text-xs text-gray-500">قیمت: {(pkg.price ?? 0).toLocaleString("fa-IR")}</div>
+                <div className="text-xs text-gray-500">
+                  قیمت: {(Number(pkg?.price) || 0).toLocaleString("fa-IR")}
+                </div>
               </div>
               {!!chosen && (
                 <input
@@ -383,7 +397,7 @@ export default function AppointmentCreateModal({
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-4 md:p-6 font-vazir">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-4 md:p-6 font-vازir">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">ثبت نوبت</h3>
           <button onClick={onClose} className="px-2 py-1 rounded-lg border">بستن</button>
