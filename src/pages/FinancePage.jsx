@@ -3,6 +3,8 @@ import { useState } from "react";
 import InventoryManager from "../components/finance/InventoryManager";
 import LaserPriceManager from "../components/finance/LaserPriceManager";
 import PaymentMethodManager from "../components/PaymentMethodManager";
+import CareProductsManager from "../components/finance/CareProductsManager";   // 👈 جدید
+import FacialPackagesManager from "../components/finance/FacialPackagesManager"; // 👈 جدید
 import ErrorBoundary from "../components/common/ErrorBoundary";
 
 export default function FinancePage() {
@@ -50,6 +52,10 @@ export default function FinancePage() {
       <ErrorBoundary>
         <PaymentMethodManager />
       </ErrorBoundary>
+
+      {/* 👇 دو بخش جدید */}
+      <ErrorBoundary><CareProductsManager /></ErrorBoundary>
+      <ErrorBoundary><FacialPackagesManager /></ErrorBoundary>
     </div>
   );
 }

@@ -1,88 +1,121 @@
-// src/components/finance/CareProductsManager.jsx
 import { useEffect, useState } from "react";
-import { getCareProducts, createCareProduct, updateCareProduct, deleteCareProduct } from "../../api/careProducts";
+import {
+  getCareProducts,
+  createCareProduct,
+  updateCareProduct,
+  deleteCareProduct,
+} from "../../api/careProductsApi";
+
+const arr = (x) => (Array.isArray(x) ? x : []);
 
 export default function CareProductsManager() {
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ name: "", brand: "", buyPrice: "", sellPrice: "", stock: "" });
-  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name:"", brand:"", costPrice:"", salePrice:"", stock:"" });
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => { (async () => setItems(await getCareProducts()))(); }, []);
+  const load = async () => {
+    setLoading(true);
+    try { setItems(arr(await getCareProducts())); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const save = async () => {
     const payload = {
       name: form.name.trim(),
       brand: form.brand?.trim() || "",
-      buyPrice: Number(form.buyPrice) || 0,
-      sellPrice: Number(form.sellPrice) || 0,
+      costPrice: Number(form.costPrice) || 0,
+      salePrice: Number(form.salePrice) || 0,
       stock: Number(form.stock) || 0,
     };
-    if (!payload.name) return alert("نام الزامی است");
+    if (!payload.name) return;
 
-    if (editId) await updateCareProduct(editId, payload);
+    if (editingId) await updateCareProduct(editingId, payload);
     else await createCareProduct(payload);
 
-    setItems(await getCareProducts());
-    setForm({ name: "", brand: "", buyPrice: "", sellPrice: "", stock: "" });
-    setEditId(null);
+    setForm({ name:"", brand:"", costPrice:"", salePrice:"", stock:"" });
+    setEditingId(null);
+    load();
   };
 
   const startEdit = (it) => {
-    setEditId(it._id);
+    setEditingId(it._id);
     setForm({
-      name: it.name, brand: it.brand || "",
-      buyPrice: it.buyPrice ?? "", sellPrice: it.sellPrice ?? "", stock: it.stock ?? ""
+      name: it.name || "",
+      brand: it.brand || "",
+      costPrice: it.costPrice ?? "",
+      salePrice: it.salePrice ?? "",
+      stock: it.stock ?? "",
     });
   };
 
-  const remove = async (id) => {
-    if (!confirm("حذف شود؟")) return;
-    await deleteCareProduct(id);
-    setItems(await getCareProducts());
-  };
-
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-bold mb-3">🧴 محصولات مراقبتی</h2>
+    <div className="p-4 border rounded-md shadow bg-white mt-4">
+      <h2 className="text-lg font-semibold mb-3">🧴 محصولات مراقبتی</h2>
 
-      <div className="bg-white p-4 rounded-lg border space-y-2">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-          <input className="border p-2 rounded" placeholder="نام محصول"
-                 value={form.name} onChange={(e)=>setForm(f=>({...f,name:e.target.value}))}/>
-          <input className="border p-2 rounded" placeholder="برند"
-                 value={form.brand} onChange={(e)=>setForm(f=>({...f,brand:e.target.value}))}/>
-          <input className="border p-2 rounded" placeholder="قیمت خرید" type="number"
-                 value={form.buyPrice} onChange={(e)=>setForm(f=>({...f,buyPrice:e.target.value}))}/>
-          <input className="border p-2 rounded" placeholder="قیمت فروش" type="number"
-                 value={form.sellPrice} onChange={(e)=>setForm(f=>({...f,sellPrice:e.target.value}))}/>
-          <input className="border p-2 rounded" placeholder="موجودی" type="number"
-                 value={form.stock} onChange={(e)=>setForm(f=>({...f,stock:e.target.value}))}/>
-        </div>
-        <div className="text-left">
-          <button onClick={save} className="bg-brand text-white px-4 py-2 rounded">
-            {editId ? "ذخیره ویرایش" : "افزودن"}
+      <div className="grid md:grid-cols-5 gap-2 mb-3">
+        <input name="name" placeholder="نام *" className="border p-2 rounded"
+               value={form.name} onChange={onChange}/>
+        <input name="brand" placeholder="برند" className="border p-2 rounded"
+               value={form.brand} onChange={onChange}/>
+        <input name="costPrice" placeholder="قیمت خرید" className="border p-2 rounded"
+               value={form.costPrice} onChange={onChange} />
+        <input name="salePrice" placeholder="قیمت فروش" className="border p-2 rounded"
+               value={form.salePrice} onChange={onChange} />
+        <input name="stock" placeholder="موجودی" className="border p-2 rounded"
+               value={form.stock} onChange={onChange} />
+      </div>
+
+      <div className="mb-4">
+        <button onClick={save} className="bg-brand text-white px-4 py-2 rounded">
+          {editingId ? "ذخیره ویرایش" : "افزودن"}
+        </button>
+        {editingId && (
+          <button onClick={() => { setEditingId(null); setForm({ name:"", brand:"", costPrice:"", salePrice:"", stock:"" }); }}
+                  className="ml-2 px-3 py-2 rounded border">
+            انصراف
           </button>
-          {editId && (
-            <button onClick={() => { setEditId(null); setForm({ name:"", brand:"", buyPrice:"", sellPrice:"", stock:"" }); }}
-                    className="ml-2 px-3 py-2 border rounded">انصراف</button>
-          )}
-        </div>
+        )}
       </div>
 
-      <div className="mt-3 bg-white p-3 rounded-lg border">
-        {(items || []).map(it => (
-          <div key={it._id} className="flex items-center justify-between py-2 border-b last:border-b-0 text-sm">
-            <div>
-              <div className="font-medium">{it.name}{it.brand ? ` — ${it.brand}` : ""}</div>
-              <div className="text-gray-500">خرید: {it.buyPrice?.toLocaleString("fa-IR")} | فروش: {it.sellPrice?.toLocaleString("fa-IR")} | موجودی: {it.stock}</div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={()=>startEdit(it)} className="px-3 py-1 border rounded">ویرایش</button>
-              <button onClick={()=>remove(it._id)} className="px-3 py-1 border rounded text-red-600">حذف</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+      {loading ? <div className="text-sm text-gray-500">در حال بارگذاری…</div> : (
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-right">نام</th>
+                <th className="p-2 text-right">برند</th>
+                <th className="p-2 text-right">خرید</th>
+                <th className="p-2 text-right">فروش</th>
+                <th className="p-2 text-right">موجودی</th>
+                <th className="p-2 text-right">عملیات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {arr(items).map((it) => (
+                <tr key={it._id} className="border-t">
+                  <td className="p-2">{it.name}</td>
+                  <td className="p-2">{it.brand || "-"}</td>
+                  <td className="p-2">{it.costPrice?.toLocaleString("fa-IR")}</td>
+                  <td className="p-2">{it.salePrice?.toLocaleString("fa-IR")}</td>
+                  <td className="p-2">{it.stock ?? 0}</td>
+                  <td className="p-2 flex gap-3">
+                    <button onClick={() => startEdit(it)} className="text-blue-600">ویرایش</button>
+                    <button onClick={async () => { await deleteCareProduct(it._id); load(); }} className="text-red-600">حذف</button>
+                  </td>
+                </tr>
+              ))}
+              {arr(items).length === 0 && (
+                <tr><td className="p-3 text-gray-500" colSpan={6}>موردی ثبت نشده</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

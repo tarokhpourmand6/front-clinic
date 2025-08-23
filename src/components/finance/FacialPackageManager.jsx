@@ -1,80 +1,106 @@
-// src/components/finance/FacialPackageManager.jsx
 import { useEffect, useState } from "react";
-import { getFacialPackages, createFacialPackage, updateFacialPackage, deleteFacialPackage } from "../../api/facialPackages";
+import {
+  getFacialPackages,
+  createFacialPackage,
+  updateFacialPackage,
+  deleteFacialPackage,
+} from "../../api/facialPackagesApi";
 
-export default function FacialPackageManager() {
+const arr = (x) => (Array.isArray(x) ? x : []);
+
+export default function FacialPackagesManager() {
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ name: "", price: "", steps: "" }); // steps: متنِ توضیح آیتم‌ها
-  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name:"", itemsText:"", price:"" });
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => { (async () => setItems(await getFacialPackages()))(); }, []);
+  const load = async () => {
+    setLoading(true);
+    try { setItems(arr(await getFacialPackages())); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
 
   const save = async () => {
     const payload = {
       name: form.name.trim(),
       price: Number(form.price) || 0,
-      steps: form.steps?.trim() || "", // مثلا: "پاکسازی + آبرسانی + ماسک"
+      items: form.itemsText.split(",").map(s => s.trim()).filter(Boolean),
     };
-    if (!payload.name) return alert("نام الزامی است");
+    if (!payload.name) return;
 
-    if (editId) await updateFacialPackage(editId, payload);
+    if (editingId) await updateFacialPackage(editingId, payload);
     else await createFacialPackage(payload);
 
-    setItems(await getFacialPackages());
-    setForm({ name: "", price: "", steps: "" });
-    setEditId(null);
+    setForm({ name:"", itemsText:"", price:"" });
+    setEditingId(null);
+    load();
   };
 
   const startEdit = (it) => {
-    setEditId(it._id);
-    setForm({ name: it.name, price: it.price ?? "", steps: it.steps || "" });
-  };
-
-  const remove = async (id) => {
-    if (!confirm("حذف شود؟")) return;
-    await deleteFacialPackage(id);
-    setItems(await getFacialPackages());
+    setEditingId(it._id);
+    setForm({
+      name: it.name || "",
+      price: it.price ?? "",
+      itemsText: arr(it.items).join(", "),
+    });
   };
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-bold mb-3">🧖‍♀️ پکیج‌های فیشیال</h2>
+    <div className="p-4 border rounded-md shadow bg-white mt-4">
+      <h2 className="text-lg font-semibold mb-3">💆🏻‍♀️ پکیج‌های فیشیال</h2>
 
-      <div className="bg-white p-4 rounded-lg border space-y-2">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input className="border p-2 rounded" placeholder="نام پکیج"
-                 value={form.name} onChange={(e)=>setForm(f=>({...f,name:e.target.value}))}/>
-          <input className="border p-2 rounded" placeholder="قیمت" type="number"
-                 value={form.price} onChange={(e)=>setForm(f=>({...f,price:e.target.value}))}/>
-          <input className="border p-2 rounded" placeholder="مرحله‌ها (اختیاری، با + جدا کن)"
-                 value={form.steps} onChange={(e)=>setForm(f=>({...f,steps:e.target.value}))}/>
-        </div>
-        <div className="text-left">
-          <button onClick={save} className="bg-brand text-white px-4 py-2 rounded">
-            {editId ? "ذخیره ویرایش" : "افزودن"}
+      <div className="grid md:grid-cols-3 gap-2 mb-3">
+        <input className="border p-2 rounded" placeholder="نام پکیج *"
+               value={form.name} onChange={(e)=>setForm({...form, name:e.target.value})}/>
+        <input className="border p-2 rounded" placeholder="قیمت"
+               value={form.price} onChange={(e)=>setForm({...form, price:e.target.value})}/>
+        <input className="border p-2 rounded" placeholder="آیتم‌ها (با کاما جدا)"
+               value={form.itemsText} onChange={(e)=>setForm({...form, itemsText:e.target.value})}/>
+      </div>
+
+      <div className="mb-4">
+        <button onClick={save} className="bg-brand text-white px-4 py-2 rounded">
+          {editingId ? "ذخیره ویرایش" : "افزودن"}
+        </button>
+        {editingId && (
+          <button onClick={() => { setEditingId(null); setForm({ name:"", itemsText:"", price:"" }); }}
+                  className="ml-2 px-3 py-2 rounded border">
+            انصراف
           </button>
-          {editId && (
-            <button onClick={() => { setEditId(null); setForm({ name:"", price:"", steps:"" }); }}
-                    className="ml-2 px-3 py-2 border rounded">انصراف</button>
-          )}
-        </div>
+        )}
       </div>
 
-      <div className="mt-3 bg-white p-3 rounded-lg border">
-        {(items || []).map(it => (
-          <div key={it._id} className="flex items-center justify-between py-2 border-b last:border-b-0 text-sm">
-            <div>
-              <div className="font-medium">{it.name}</div>
-              <div className="text-gray-500">قیمت: {it.price?.toLocaleString("fa-IR")}</div>
-              {it.steps ? <div className="text-gray-500 mt-1">مراحل: {it.steps}</div> : null}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={()=>startEdit(it)} className="px-3 py-1 border rounded">ویرایش</button>
-              <button onClick={()=>remove(it._id)} className="px-3 py-1 border rounded text-red-600">حذف</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+      {loading ? <div className="text-sm text-gray-500">در حال بارگذاری…</div> : (
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-right">نام</th>
+                <th className="p-2 text-right">قیمت</th>
+                <th className="p-2 text-right">آیتم‌ها</th>
+                <th className="p-2 text-right">عملیات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {arr(items).map((it) => (
+                <tr key={it._id} className="border-t">
+                  <td className="p-2">{it.name}</td>
+                  <td className="p-2">{it.price?.toLocaleString("fa-IR")}</td>
+                  <td className="p-2">{arr(it.items).join("، ") || "-"}</td>
+                  <td className="p-2 flex gap-3">
+                    <button onClick={() => startEdit(it)} className="text-blue-600">ویرایش</button>
+                    <button onClick={async () => { await deleteFacialPackage(it._id); load(); }} className="text-red-600">حذف</button>
+                  </td>
+                </tr>
+              ))}
+              {arr(items).length === 0 && (
+                <tr><td className="p-3 text-gray-500" colSpan={4}>موردی ثبت نشده</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
