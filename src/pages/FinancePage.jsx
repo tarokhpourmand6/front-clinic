@@ -1,10 +1,9 @@
-// src/pages/FinancePage.jsx
+// FinancePage.jsx
 import { useState } from "react";
 import InventoryManager from "../components/finance/InventoryManager";
 import LaserPriceManager from "../components/finance/LaserPriceManager";
 import PaymentMethodManager from "../components/PaymentMethodManager";
-import CareProductsManager from "../components/finance/CareProductsManager";      // NEW
-import FacialPackageManager from "../components/finance/FacialPackageManager";    // NEW
+import ErrorBoundary from "../components/common/ErrorBoundary";
 
 export default function FinancePage() {
   const [password, setPassword] = useState("");
@@ -21,10 +20,14 @@ export default function FinancePage() {
       <div className="h-screen flex flex-col justify-center items-center font-vazir bg-gray-50 px-4">
         <form onSubmit={handleLogin} className="bg-white p-6 rounded-lg shadow-md max-w-sm w-full text-right">
           <h2 className="text-lg font-bold mb-4">🔐 دسترسی به مدیریت مالی</h2>
-          <input type="password" placeholder="رمز عبور" value={password}
-                 onChange={(e) => setPassword(e.target.value)}
-                 className="w-full px-4 py-2 border border-gray-300 rounded-md text-sm mb-4" />
-          <button type="submit" className="bg-brand text-white px-4 py-2 rounded-md w-full hover:bg-emerald-700 transition text-sm">
+          <input
+            type="password"
+            placeholder="رمز عبور"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md text-sm mb-4"
+          />
+          <button type="submit" className="bg-brand text-white px-4 py-2 rounded-md w-full text-sm">
             ورود
           </button>
         </form>
@@ -36,20 +39,17 @@ export default function FinancePage() {
     <div className="p-6 font-vazir max-w-5xl mx-auto">
       <h1 className="text-xl font-bold mb-6">مدیریت مالی کلینیک</h1>
 
-      {/* انبار تزریقات (مثل قبل) */}
-      <InventoryManager />
+      <ErrorBoundary>
+        <InventoryManager />
+      </ErrorBoundary>
 
-      {/* قیمت نواحی لیزر (مثل قبل) */}
-      <LaserPriceManager />
+      <ErrorBoundary>
+        <LaserPriceManager />
+      </ErrorBoundary>
 
-      {/* محصولات مراقبتی */}
-      <CareProductsManager />
-
-      {/* پکیج‌های فیشیال */}
-      <FacialPackageManager />
-
-      {/* روش‌های پرداخت (مثل قبل) */}
-      <PaymentMethodManager />
+      <ErrorBoundary>
+        <PaymentMethodManager />
+      </ErrorBoundary>
     </div>
   );
 }
