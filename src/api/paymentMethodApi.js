@@ -1,35 +1,31 @@
-// src/api/paymentMethodApi.js
 import api from "./axios";
 
-// خروجی را همیشه به آرایه یکدست می‌کنیم
+// همیشه خروجی را به آرایه تمیز کن
 const normalizeList = (body) => {
-  if (Array.isArray(body?.data?.data)) return body.data.data; // { data: { data: [] } }
-  if (Array.isArray(body?.data)) return body.data;            // { data: [] }
-  if (Array.isArray(body)) return body;                       // []
+  if (Array.isArray(body?.data?.data)) return body.data.data; // { data: { data: [...] } }
+  if (Array.isArray(body?.data))       return body.data;      // { data: [...] }
+  if (Array.isArray(body))             return body;           // [...]
   return [];
 };
 
-// ورودی را به آبجکت {name} یکدست می‌کنیم
-const toNamePayload = (payload) =>
-  typeof payload === "string" ? { name: payload.trim() } : { name: (payload?.name || "").trim() };
+// اگر payload استرینگ بود، به {name} تبدیلش کن
+const ensureObj = (payloadOrName) =>
+  typeof payloadOrName === "string" ? { name: payloadOrName } : (payloadOrName || {});
 
 export const getPaymentMethods = async () => {
   const res = await api.get("/payment-methods");
   return normalizeList(res?.data ?? {});
 };
 
-export const createPaymentMethod = async (payload) => {
-  const body = toNamePayload(payload);
-  if (!body.name) throw new Error("نام روش پرداخت خالی است");
-  const res = await api.post("/payment-methods", body);
-  // سرور ممکن است در data یا data.data برگرداند
+export const createPaymentMethod = async (payloadOrName) => {
+  const payload = ensureObj(payloadOrName);
+  const res = await api.post("/payment-methods", payload);
   return res?.data?.data ?? res?.data ?? null;
 };
 
-export const updatePaymentMethod = async (id, payload) => {
-  const body = toNamePayload(payload);
-  if (!body.name) throw new Error("نام روش پرداخت خالی است");
-  const res = await api.put(`/payment-methods/${id}`, body);
+export const updatePaymentMethod = async (id, payloadOrName) => {
+  const payload = ensureObj(payloadOrName);
+  const res = await api.put(`/payment-methods/${id}`, payload);
   return res?.data?.data ?? res?.data ?? null;
 };
 
