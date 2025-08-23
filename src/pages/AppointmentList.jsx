@@ -49,7 +49,6 @@ export default function AppointmentList() {
   const [paymentOpen, setPaymentOpen] = useState(false);
 
   const [selectedPaymentDetails, setSelectedPaymentDetails] = useState([]);
-  the
   const [selectedInitialPrice, setSelectedInitialPrice] = useState(0);
 
   // مودال ثبت نوبت
@@ -72,14 +71,14 @@ export default function AppointmentList() {
       setLoading(false);
     };
     fetchWithLoading();
-  }, []);
+  }, [fetchAppointments]);
 
   // ----- فیلتر اصلی لیست -----
-  const filtered = appointments.filter((a) => {
-    const nameMatch  = a.patientId?.fullName?.includes(filters.name);
-    const phoneMatch = a.patientId?.phone?.includes(filters.phone);
+  const filtered = (appointments || []).filter((a) => {
+    const nameMatch  = a?.patientId?.fullName?.includes(filters.name);
+    const phoneMatch = a?.patientId?.phone?.includes(filters.phone);
     const dateMatch  = filters.date
-      ? a.dateShamsi === `${filters.date.year}-${String(filters.date.month).padStart(2,'0')}-${String(filters.date.day).padStart(2,'0')}`
+      ? a?.dateShamsi === `${filters.date.year}-${String(filters.date.month).padStart(2,'0')}-${String(filters.date.day).padStart(2,'0')}`
       : true;
     return nameMatch && phoneMatch && dateMatch;
   });
@@ -103,7 +102,7 @@ export default function AppointmentList() {
     await updateAppointmentItem(appointmentId, { status: mapped });
 
     if (newStatus === 'done') {
-      const ap = appointments.find((x) => x._id === appointmentId);
+      const ap = (appointments || []).find((x) => x._id === appointmentId);
       if (!ap) return;
       setSelectedAppointmentId(appointmentId);
       if (ap.type === 'Injection') setConsumablesOpen(true);
@@ -112,8 +111,10 @@ export default function AppointmentList() {
   };
 
   const handlePriceChange = async (appointmentId, val) => {
-    const cleaned = val.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^0-9]/g, '');
-    await updateAppointmentItem(appointmentId, { price: Number(cleaned) });
+    const cleaned = String(val)
+      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+      .replace(/[^0-9]/g, '');
+    await updateAppointmentItem(appointmentId, { price: Number(cleaned) || 0 });
   };
 
   const handleTimeChange = async (appointmentId, time) => {
@@ -133,7 +134,7 @@ export default function AppointmentList() {
   // 👇 مخصوص جدول فروش محصولات: ویرایش خطوط فروش
   const handleUpdateSale = async (appointmentId, nextProducts, nextTotal) => {
     await updateAppointmentItem(appointmentId, {
-      products: nextProducts,
+      products: Array.isArray(nextProducts) ? nextProducts : [],
       price: Number(nextTotal) || 0,
     });
     await fetchAppointments();
@@ -220,10 +221,10 @@ export default function AppointmentList() {
       <CareProductSalesTable
         data={productSales}
         onDateChange={handleDateChange}
-        onDelete={handleDelete}                 // حذف کل رکورد فروش (در صورت نیاز می‌تونی جداش کنی)
+        onDelete={handleDelete}
         onOpenPaymentModal={handleOpenPaymentModal}
         onPatientClick={handlePatientClick}
-        onUpdateSale={handleUpdateSale}         // 👈 مهم برای تغییر تعداد/حذف یک قلم
+        onUpdateSale={handleUpdateSale}
       />
 
       {/* ── مودال‌های اقلام/لیزر/پرداخت ── */}
@@ -232,7 +233,7 @@ export default function AppointmentList() {
         onClose={() => setConsumablesOpen(false)}
         appointmentId={selectedAppointmentId}
         onSave={(items, price) => {
-          setSelectedInitialPrice(price);
+          setSelectedInitialPrice(Number(price) || 0);
           setSelectedPaymentDetails([]);
           setPaymentOpen(true);
           fetchAppointments();
@@ -244,8 +245,8 @@ export default function AppointmentList() {
         onClose={() => setLaserAreasOpen(false)}
         appointmentId={selectedAppointmentId}
         onOpenPaymentModal={(price) => {
-          const found = appointments.find((a) => a._id === selectedAppointmentId);
-          setSelectedInitialPrice(price);
+          const found = (appointments || []).find((a) => a._id === selectedAppointmentId);
+          setSelectedInitialPrice(Number(price) || 0);
           setSelectedPaymentDetails(found?.paymentDetails || []);
           setPaymentOpen(true);
           fetchAppointments();
