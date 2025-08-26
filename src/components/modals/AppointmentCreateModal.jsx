@@ -7,7 +7,7 @@ import { getPatientsFast } from "../../api/patients";
 import { getAllProducts } from "../../api/inventory";     // تزریقات (salePrice)
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
-import { getCareProducts } from "../../api/careProductsApi";     // محصولات (salePrice)
+import { getCareProducts } from "../../api/careProductsApi";     // محصولات (sellPrice / salePrice)
 import { getFacialPackages } from "../../api/facialPackagesApi"; // فیشیال
 
 moment.loadPersian({ dialect: "persian-modern" });
@@ -23,7 +23,7 @@ const normFa = (s = "") =>
     .replace(/\u0640/g, "")
     .replace(/ك/g, "ک")
     .replace(/ي/g, "ی")
-    .replace(/\s+/g, " ")
+    .replace(/\س+/g, " ")
     .toLowerCase();
 
 const Section = ({ title, right, children, open, onToggle }) => (
@@ -46,8 +46,8 @@ export default function AppointmentCreateModal({
   open,
   onClose,
   preselectedPatient,
-  onSuccess,      // refresh لیست‌ها
-  onCreated,      // برای باز کردن PaymentModal بعد از فروش محصول
+  onSuccess,
+  onCreated,
   onOpenPatientCreate,
 }) {
   const [allPatients, setAllPatients] = useState([]);
@@ -58,14 +58,13 @@ export default function AppointmentCreateModal({
 
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
 
-  const [inventory, setInventory] = useState([]);        // تزریقات (salePrice)
+  const [inventory, setInventory] = useState([]);        // تزریقات
   const [laserPrices, setLaserPrices] = useState({});
-  const [careProducts, setCareProducts] = useState([]);  // محصولات (salePrice)
+  const [careProducts, setCareProducts] = useState([]);  // محصولات مراقبتی
   const [facialPackages, setFacialPackages] = useState([]); // فیشیال
 
   const [loading, setLoading] = useState(false);
 
-  // پیش‌نویس آیتم جاری (Draft) که می‌خوایم به سبد اضافه کنیم
   const [draft, setDraft] = useState({
     serviceType: "تزریقات",
     serviceOption: [],
@@ -77,10 +76,8 @@ export default function AppointmentCreateModal({
     gender: "female",
   });
 
-  // سبد آیتم‌ها (هر آیتم → یک نوبت جدا ثبت می‌شود)
   const [cart, setCart] = useState([]);
 
-  // باز/بسته بودن سکشن‌ها
   const [openSec, setOpenSec] = useState({
     patient: true,
     picker: true,
@@ -93,18 +90,17 @@ export default function AppointmentCreateModal({
   );
   const minutes = ["00", "10", "20", "30", "40", "50"];
 
-  // ------ initial load
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
         const [prod, laser, pts, cp, fp] = await Promise.all([
-          getAllProducts(),     // تزریقات: { name, salePrice, ... }
+          getAllProducts(),
           getLaserPrices(),
           getPatientsFast(),
-          getCareProducts(),    // محصولات: { _id, name, brand, sellPrice }
-          getFacialPackages(),  // فیشیال: { _id, name, price }
+          getCareProducts(),
+          getFacialPackages(),
         ]);
 
         setInventory(Array.isArray(prod) ? prod : []);
@@ -133,7 +129,7 @@ export default function AppointmentCreateModal({
         setHasMore(first.length < list.length);
 
         setSelectedPatient(preselectedPatient || null);
-        setCart([]); // هر بار باز شدن مودال، سبد را خالی کن
+        setCart([]);
         setDraft((s) => ({ ...s, serviceOption: [], appointmentDate: null, price: 0 }));
       } finally {
         setLoading(false);
@@ -141,7 +137,6 @@ export default function AppointmentCreateModal({
     })();
   }, [open, preselectedPatient]);
 
-  // ------ client search
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
@@ -181,7 +176,7 @@ export default function AppointmentCreateModal({
     setHasMore(nextSlice.length < filtered.length);
   };
 
-  // ------ price calc for DRAFT
+  // ---------- PRICE for Draft ----------
   useEffect(() => {
     let total = 0;
 
@@ -200,7 +195,8 @@ export default function AppointmentCreateModal({
         let price = Number(unitPrice);
         if (!Number.isFinite(price)) {
           const p = (careProducts || []).find((x) => x._id === id);
-          price = Number(p?.salePrice ?? p?.sellPrice) || 0;
+          // ✅ اولویت با sellPrice، سپس salePrice برای سازگاری
+          price = Number(p?.sellPrice ?? p?.salePrice) || 0;
         }
         total += price * (Number(qty) || 1);
       });
@@ -222,11 +218,12 @@ export default function AppointmentCreateModal({
     facialPackages,
   ]);
 
-  // ---------- Small Pickers ----------
+  // ---------- Small Pickers (only product part changed) ----------
   const ProductPicker = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
       {(careProducts || []).map((p) => {
         const chosen = (draft.serviceOption || []).find((x) => x.id === p._id);
+        const effectivePrice = Number(p?.sellPrice ?? p?.salePrice) || 0; // ✅ نمایش درست
         return (
           <div key={p._id} className="flex items-center gap-2 border p-2 rounded">
             <input
@@ -235,7 +232,8 @@ export default function AppointmentCreateModal({
               onChange={(e) => {
                 let next = [...(draft.serviceOption || [])];
                 if (e.target.checked) {
-                  next.push({ id: p._id, qty: 1, unitPrice: Number(p?.salePrice ?? p?.sellPrice) || 0 });
+                  // ✅ ذخیره‌ی قیمت واحد بر اساس sellPrice سپس salePrice
+                  next.push({ id: p._id, qty: 1, unitPrice: effectivePrice });
                 } else {
                   next = next.filter((x) => x.id !== p._id);
                 }
@@ -245,7 +243,7 @@ export default function AppointmentCreateModal({
             <div className="flex-1">
               <div className="font-medium">{p.name}{p.brand ? ` — ${p.brand}` : ""}</div>
               <div className="text-xs text-gray-500">
-                فروش: {(Number(p?.salePrice) || 0).toLocaleString("fa-IR")}
+                فروش: {effectivePrice.toLocaleString("fa-IR")}
               </div>
             </div>
             {!!chosen && (
@@ -312,7 +310,6 @@ export default function AppointmentCreateModal({
     </div>
   );
 
-  // ---------- Add to cart ----------
   const addDraftToCart = () => {
     if (!selectedPatient?._id) {
       alert("بیمار را انتخاب کنید.");
@@ -340,25 +337,14 @@ export default function AppointmentCreateModal({
       time: draft.serviceType === "محصولات" ? "" : `${draft.appointmentHour}:${draft.appointmentMinute}`,
       status: draft.status,
       price: draft.price,
-      // محتوای اختصاصی هر خدمت
       serviceOption: draft.serviceOption,
     };
 
     setCart((c) => [item, ...c]);
-
-    // ریست ملایمِ فقط انتخاب‌های همان خدمت، نه کل درفت
-    setDraft((s) => ({
-      ...s,
-      serviceOption: [],
-      // تاریخ را نگه‌می‌داریم تا سریع چند آیتم هم‌تاریخ اضافه شود
-      price: 0,
-    }));
-
-    // سبد را باز کن تا کاربر آیتم را ببیند
+    setDraft((s) => ({ ...s, serviceOption: [], price: 0 }));
     setOpenSec((o) => ({ ...o, cart: true }));
   };
 
-  // ---------- Submit All (create one-by-one) ----------
   const submitAll = async () => {
     if (!selectedPatient?._id) {
       alert("بیمار انتخاب نشده است.");
@@ -372,7 +358,7 @@ export default function AppointmentCreateModal({
     let lastSaleForPayment = null;
 
     try {
-      for (const it of [...cart].reverse()) { // (برعکس برای حس اضافه‌شدن آخرین‌ها اول)
+      for (const it of [...cart].reverse()) {
         const base = {
           patientId: selectedPatient._id,
           dateShamsi: it.dateShamsi,
@@ -428,15 +414,9 @@ export default function AppointmentCreateModal({
         }
       }
 
-      // رفرش لیست‌ها
       onSuccess?.();
+      if (lastSaleForPayment) onCreated?.(lastSaleForPayment);
 
-      // اگر فروش محصول داشتیم → PaymentModal
-      if (lastSaleForPayment) {
-        onCreated?.(lastSaleForPayment);
-      }
-
-      // بستن مودال و ریست
       setCart([]);
       setDraft((s) => ({ ...s, serviceOption: [], price: 0 }));
       onClose?.();
@@ -446,7 +426,6 @@ export default function AppointmentCreateModal({
     }
   };
 
-  // ---------- UI ----------
   if (!open) return null;
 
   return (
@@ -524,7 +503,6 @@ export default function AppointmentCreateModal({
                 <select
                   value={draft.serviceType}
                   onChange={(e) =>
-                    // انتخاب‌ها پاک نشه؛ فقط نوع عوض شه
                     setDraft((s) => ({ ...s, serviceType: e.target.value }))
                   }
                   className="border p-2 rounded w-full text-sm mt-1"
@@ -613,7 +591,6 @@ export default function AppointmentCreateModal({
               {draft.serviceType === "محصولات" && <ProductPicker />}
               {draft.serviceType === "فیشیال" && <FacialPicker />}
 
-              {/* تاریخ و ساعت */}
               <div className="mt-3">
                 <label className="text-sm">
                   {draft.serviceType === "محصولات" ? "تاریخ فروش:" : "تاریخ نوبت:"}
@@ -662,7 +639,6 @@ export default function AppointmentCreateModal({
               </div>
             </Section>
 
-            {/* سبد آیتم‌ها */}
             <Section
               title={`سبد (${cart.length})`}
               open={openSec.cart}
