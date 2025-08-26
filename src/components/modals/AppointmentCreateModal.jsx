@@ -8,7 +8,6 @@ import { getPatientsFast } from "../../api/patients";
 import { getAllProducts } from "../../api/inventory";
 import { getLaserPrices } from "../../api/laserPrice";
 import { createAppointment } from "../../api/appointments";
-
 import { getCareProducts } from "../../api/careProductsApi";
 import { getFacialPackages } from "../../api/facialPackagesApi";
 
@@ -28,7 +27,6 @@ const normFa = (s = "") =>
     .replace(/\s+/g, " ")
     .toLowerCase();
 
-/* ----------------------- UI helpers ----------------------- */
 function Accordion({ title, count = 0, open, onToggle, children }) {
   return (
     <div className="border rounded-xl overflow-hidden">
@@ -56,7 +54,6 @@ function Accordion({ title, count = 0, open, onToggle, children }) {
   );
 }
 
-/* ----------------------- Component ----------------------- */
 export default function AppointmentCreateModal({
   open,
   onClose,
@@ -73,17 +70,16 @@ export default function AppointmentCreateModal({
 
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
 
-  // موجودی‌ها و لیست‌ها
-  const [injectionItems, setInjectionItems] = useState([]);    // از getAllProducts (دارای sellPrice)
+  // لیست‌ها
+  const [injectionItems, setInjectionItems] = useState([]); // از inventory
   const [laserPrices, setLaserPrices] = useState({});
-  const [careProducts, setCareProducts] = useState([]);        // دارای sellPrice
-  const [facialPackages, setFacialPackages] = useState([]);    // دارای price
+  const [careProducts, setCareProducts] = useState([]);     // از careProductsApi
+  const [facialPackages, setFacialPackages] = useState([]); // از facialPackagesApi
 
   const [loading, setLoading] = useState(false);
 
-  // وضعیت فرم
   const [appointment, setAppointment] = useState({
-    serviceType: "تزریقات", // "تزریقات" | "لیزر" | "محصولات" | "فیشیال"
+    serviceType: "تزریقات",
     serviceOption: [],
     appointmentDate: null,
     appointmentHour: "08",
@@ -93,7 +89,7 @@ export default function AppointmentCreateModal({
     gender: "female",
   });
 
-  // آکاردئون‌های باز/بسته
+  // آکاردئون‌ها
   const [openInj, setOpenInj] = useState(true);
   const [openLaser, setOpenLaser] = useState(false);
   const [openProducts, setOpenProducts] = useState(false);
@@ -105,18 +101,21 @@ export default function AppointmentCreateModal({
   );
   const minutes = ["00", "10", "20", "30", "40", "50"];
 
-  /* ------------------- initial load ------------------- */
+  // helper قیمت واحد با پشتیبانی از sellPrice/sellprice/price
+  const getUnit = (obj) => Number(obj?.sellPrice ?? obj?.sellprice ?? obj?.price ?? 0) || 0;
+
+  // initial load
   useEffect(() => {
     if (!open) return;
     (async () => {
       setLoading(true);
       try {
         const [inv, laser, pts, cp, fp] = await Promise.all([
-          getAllProducts(),       // اقلام تزریقی (sellPrice)
+          getAllProducts(),
           getLaserPrices(),
           getPatientsFast(),
-          getCareProducts(),      // محصولات مراقبتی (sellPrice)
-          getFacialPackages(),    // پکیج فیشیال (price)
+          getCareProducts(),
+          getFacialPackages(),
         ]);
 
         setInjectionItems(Array.isArray(inv) ? inv : []);
@@ -151,7 +150,7 @@ export default function AppointmentCreateModal({
     })();
   }, [open, preselectedPatient]);
 
-  /* ------------------- client search ------------------- */
+  // client search
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
@@ -191,29 +190,27 @@ export default function AppointmentCreateModal({
     setHasMore(nextSlice.length < filtered.length);
   };
 
-  /* ------------------- price calc ------------------- */
+  // price calc
   useEffect(() => {
     let total = 0;
 
     if (appointment.serviceType === "تزریقات") {
-      // [{ name, amount }] و قیمت از sellPrice اقلام injectionItems
       (appointment.serviceOption || []).forEach(({ name, amount }) => {
         const found = (injectionItems || []).find((i) => i.name === name);
-        const unit = Number(found?.sellPrice) || 0;
+        const unit = getUnit(found); // ← sellPrice یا sellprice
         total += unit * (Number(amount) || 1);
       });
     } else if (appointment.serviceType === "لیزر") {
       (appointment.serviceOption || []).forEach((area) => {
-        const price = laserPrices[`${appointment.gender}-${area}`];
-        if (price) total += Number(price) || 0;
+        const price = Number(laserPrices[`${appointment.gender}-${area}`]) || 0;
+        total += price;
       });
     } else if (appointment.serviceType === "محصولات") {
-      // [{ id, qty, unitPrice? }]
       (appointment.serviceOption || []).forEach(({ id, qty, unitPrice }) => {
         let unit = Number(unitPrice);
         if (!Number.isFinite(unit)) {
           const p = (careProducts || []).find((x) => x._id === id);
-          unit = Number(p?.sellPrice) || 0;
+          unit = getUnit(p);
         }
         total += unit * (Number(qty) || 1);
       });
@@ -238,7 +235,7 @@ export default function AppointmentCreateModal({
 
   if (!open) return null;
 
-  /* ------------------- submit ------------------- */
+  // submit
   const handleSubmit = async () => {
     if (!selectedPatient?._id) {
       alert("بیمار انتخاب نشده است.");
@@ -262,7 +259,7 @@ export default function AppointmentCreateModal({
 
     const timeStr =
       appointment.serviceType === "محصولات"
-        ? "" // ساعت برای فروش محصول لازم نیست
+        ? ""
         : `${appointment.appointmentHour}:${appointment.appointmentMinute}`;
 
     let payload = {
@@ -295,7 +292,7 @@ export default function AppointmentCreateModal({
           let unit = Number(unitPrice);
           if (!Number.isFinite(unit)) {
             const p = (careProducts || []).find((x) => x._id === id);
-            unit = Number(p?.sellPrice) || 0;
+            unit = getUnit(p);
           }
           return {
             productId: id,
@@ -323,7 +320,6 @@ export default function AppointmentCreateModal({
       const res = await createAppointment(payload);
       const appt = res?.data ?? res;
 
-      // فروش محصول → بلافاصله پرداخت
       if (appointment.serviceType === "محصولات" && appt?._id) {
         onCreated?.({
           id: appt._id,
@@ -342,18 +338,22 @@ export default function AppointmentCreateModal({
     }
   };
 
-  /* ------------------- pickers (Accordion) ------------------- */
+  // pickers
   const InjectionPicker = () => (
     <Accordion
       title="💉 تزریقات"
       count={(appointment.serviceType === "تزریقات" ? appointment.serviceOption?.length : 0) || 0}
       open={openInj}
-      onToggle={() => { setOpenInj(!openInj); setOpenLaser(false); setOpenProducts(false); setOpenFacial(false); setAppointment(s => ({...s, serviceType: "تزریقات", serviceOption: []})); }}
+      onToggle={() => {
+        setOpenInj(!openInj);
+        setOpenLaser(false); setOpenProducts(false); setOpenFacial(false);
+        setAppointment((s) => ({ ...s, serviceType: "تزریقات", serviceOption: [] }));
+      }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {(injectionItems || []).map((item) => {
           const selected = (appointment.serviceOption || []).find((x) => x.name === item.name);
-          const unit = Number(item?.sellPrice) || 0;
+          const unit = getUnit(item);
           return (
             <div key={item._id || item.name} className="flex items-center gap-2 border p-2 rounded hover:bg-gray-50">
               <input
@@ -396,7 +396,11 @@ export default function AppointmentCreateModal({
       title="⚡️ لیزر"
       count={(appointment.serviceType === "لیزر" ? appointment.serviceOption?.length : 0) || 0}
       open={openLaser}
-      onToggle={() => { setOpenLaser(!openLaser); setOpenInj(false); setOpenProducts(false); setOpenFacial(false); setAppointment(s => ({...s, serviceType: "لیزر", serviceOption: []})); }}
+      onToggle={() => {
+        setOpenLaser(!openLaser);
+        setOpenInj(false); setOpenProducts(false); setOpenFacial(false);
+        setAppointment((s) => ({ ...s, serviceType: "لیزر", serviceOption: [] }));
+      }}
     >
       <div className="mb-3">
         <label className="text-sm">جنسیت:</label>
@@ -422,12 +426,16 @@ export default function AppointmentCreateModal({
       title="📦 محصولات مراقبتی"
       count={(appointment.serviceType === "محصولات" ? appointment.serviceOption?.length : 0) || 0}
       open={openProducts}
-      onToggle={() => { setOpenProducts(!openProducts); setOpenInj(false); setOpenLaser(false); setOpenFacial(false); setAppointment(s => ({...s, serviceType: "محصولات", serviceOption: []})); }}
+      onToggle={() => {
+        setOpenProducts(!openProducts);
+        setOpenInj(false); setOpenLaser(false); setOpenFacial(false);
+        setAppointment((s) => ({ ...s, serviceType: "محصولات", serviceOption: [] }));
+      }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
         {(careProducts || []).map((p) => {
           const chosen = (appointment.serviceOption || []).find((x) => x.id === p._id);
-          const unit = Number(p?.sellPrice) || 0;
+          const unit = getUnit(p);
           return (
             <div key={p._id} className="flex items-center gap-2 border p-2 rounded hover:bg-gray-50">
               <input
@@ -475,7 +483,11 @@ export default function AppointmentCreateModal({
       title="🧖‍♀️ فیشیال"
       count={(appointment.serviceType === "فیشیال" ? appointment.serviceOption?.length : 0) || 0}
       open={openFacial}
-      onToggle={() => { setOpenFacial(!openFacial); setOpenInj(false); setOpenLaser(false); setOpenProducts(false); setAppointment(s => ({...s, serviceType: "فیشیال", serviceOption: []})); }}
+      onToggle={() => {
+        setOpenFacial(!openFacial);
+        setOpenInj(false); setOpenLaser(false); setOpenProducts(false);
+        setAppointment((s) => ({ ...s, serviceType: "فیشیال", serviceOption: [] }));
+      }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
         {(facialPackages || []).map((pkg) => {
@@ -519,124 +531,129 @@ export default function AppointmentCreateModal({
     </Accordion>
   );
 
-  const showHourMinute = appointment.serviceType !== "محصولات"; // ساعت فقط برای غیر محصولات نمایش داده شود
+  const showHourMinute = appointment.serviceType !== "محصولات";
 
-  /* ------------------- JSX ------------------- */
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-4 md:p-6 font-vazir">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">ثبت نوبت</h3>
-          <button onClick={onClose} className="px-2 py-1 rounded-lg border">بستن</button>
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl font-vazir">
+        {/* هدر ثابت */}
+        <div className="px-4 md:px-6 pt-4 pb-3 border-b sticky top-0 bg-white rounded-t-2xl">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold">ثبت نوبت</h3>
+            <button onClick={onClose} className="px-2 py-1 rounded-lg border">بستن</button>
+          </div>
         </div>
 
-        {loading ? (
-          <div className="py-12"><LoadingSpinner /></div>
-        ) : (
-          <>
-            {!selectedPatient && (
-              <div className="mb-4">
-                <div className="flex gap-2">
-                  <input
-                    className="border p-2 rounded w-full"
-                    placeholder="جستجوی نام یا شماره"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  <button onClick={onOpenPatientCreate} className="px-3 py-2 rounded-lg border">
-                    + ثبت بیمار
-                  </button>
-                </div>
-
-                <div className="mt-2 max-h-64 overflow-auto border rounded">
-                  {(visiblePatients || []).map((p) => (
-                    <button
-                      key={p._id}
-                      onClick={() => setSelectedPatient(p)}
-                      className="block w-full text-right text-sm px-3 py-2 hover:bg-gray-50 border-b last:border-b-0"
-                    >
-                      {p.fullName} — {p.phone}
+        {/* بدنه اسکرول‌دار */}
+        <div className="px-4 md:px-6 py-4 max-h-[85vh] overflow-y-auto">
+          {loading ? (
+            <div className="py-12"><LoadingSpinner /></div>
+          ) : (
+            <>
+              {!selectedPatient && (
+                <div className="mb-4">
+                  <div className="flex gap-2">
+                    <input
+                      className="border p-2 rounded w-full"
+                      placeholder="جستجوی نام یا شماره"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    <button onClick={onOpenPatientCreate} className="px-3 py-2 rounded-lg border">
+                      + ثبت بیمار
                     </button>
-                  ))}
-                  {hasMore && (
-                    <button onClick={loadMore} className="w-full py-2 text-sm text-blue-600">
-                      نمایش موارد بیشتر...
+                  </div>
+
+                  <div className="mt-2 max-h-64 overflow-auto border rounded">
+                    {(visiblePatients || []).map((p) => (
+                      <button
+                        key={p._id}
+                        onClick={() => setSelectedPatient(p)}
+                        className="block w-full text-right text-sm px-3 py-2 hover:bg-gray-50 border-b last:border-b-0"
+                      >
+                        {p.fullName} — {p.phone}
+                      </button>
+                    ))}
+                    {hasMore && (
+                      <button onClick={loadMore} className="w-full py-2 text-sm text-blue-600">
+                        نمایش موارد بیشتر...
+                      </button>
+                    )}
+                    {!hasMore && (visiblePatients || []).length === 0 && (
+                      <div className="p-3 text-xs text-gray-500 text-center">موردی پیدا نشد</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedPatient && (
+                <>
+                  <div className="bg-gray-50 border rounded p-2 mb-4 text-sm flex items-center justify-between">
+                    <span>{selectedPatient.fullName} — {selectedPatient.phone}</span>
+                    <button className="text-xs underline" onClick={() => setSelectedPatient(null)}>تغییر بیمار</button>
+                  </div>
+
+                  {/* آکاردئون‌ها */}
+                  <div className="space-y-3 mb-4">
+                    <InjectionPicker />
+                    <LaserPicker />
+                    <ProductPicker />
+                    <FacialPicker />
+                  </div>
+
+                  {/* تاریخ/ساعت */}
+                  <div className="mb-3">
+                    <label className="text-sm">
+                      {appointment.serviceType === "محصولات" ? "تاریخ فروش:" : "تاریخ نوبت:"}
+                    </label>
+                    <DatePicker
+                      value={appointment.appointmentDate}
+                      onChange={(date) => setAppointment((s) => ({ ...s, appointmentDate: date }))}
+                      inputPlaceholder="تاریخ"
+                      locale="fa"
+                      inputClassName="border p-2 rounded w-full"
+                    />
+                  </div>
+
+                  {showHourMinute && (
+                    <div className="mb-4 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-sm">ساعت:</label>
+                        <select
+                          value={appointment.appointmentHour}
+                          onChange={(e) => setAppointment((s) => ({ ...s, appointmentHour: e.target.value }))}
+                          className="border p-2 rounded w-full"
+                        >
+                          {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-sm">دقیقه:</label>
+                        <select
+                          value={appointment.appointmentMinute}
+                          onChange={(e) => setAppointment((s) => ({ ...s, appointmentMinute: e.target.value }))}
+                          className="border p-2 rounded w-full"
+                        >
+                          {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      مبلغ کل: {Number(appointment.price || 0).toLocaleString("fa-IR")}
+                    </div>
+                    <button onClick={handleSubmit} className="bg-brand text-white px-4 py-2 rounded">
+                      {appointment.serviceType === "محصولات" ? "ثبت فروش" : "ثبت نوبت"}
                     </button>
-                  )}
-                  {!hasMore && (visiblePatients || []).length === 0 && (
-                    <div className="p-3 text-xs text-gray-500 text-center">موردی پیدا نشد</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {selectedPatient && (
-              <>
-                <div className="bg-gray-50 border rounded p-2 mb-4 text-sm flex items-center justify-between">
-                  <span>{selectedPatient.fullName} — {selectedPatient.phone}</span>
-                  <button className="text-xs underline" onClick={() => setSelectedPatient(null)}>تغییر بیمار</button>
-                </div>
-
-                {/* Accordions */}
-                <div className="space-y-3 mb-4">
-                  <InjectionPicker />
-                  <LaserPicker />
-                  <ProductPicker />
-                  <FacialPicker />
-                </div>
-
-                {/* تاریخ/ساعت */}
-                <div className="mb-3">
-                  <label className="text-sm">
-                    {appointment.serviceType === "محصولات" ? "تاریخ فروش:" : "تاریخ نوبت:"}
-                  </label>
-                  <DatePicker
-                    value={appointment.appointmentDate}
-                    onChange={(date) => setAppointment((s) => ({ ...s, appointmentDate: date }))}
-                    inputPlaceholder="تاریخ"
-                    locale="fa"
-                    inputClassName="border p-2 rounded w-full"
-                  />
-                </div>
-
-                {showHourMinute && (
-                  <div className="mb-4 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-sm">ساعت:</label>
-                      <select
-                        value={appointment.appointmentHour}
-                        onChange={(e) => setAppointment((s) => ({ ...s, appointmentHour: e.target.value }))}
-                        className="border p-2 rounded w-full"
-                      >
-                        {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-sm">دقیقه:</label>
-                      <select
-                        value={appointment.appointmentMinute}
-                        onChange={(e) => setAppointment((s) => ({ ...s, appointmentMinute: e.target.value }))}
-                        className="border p-2 rounded w-full"
-                      >
-                        {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
                   </div>
-                )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    مبلغ کل: {Number(appointment.price || 0).toLocaleString("fa-IR")}
-                  </div>
-                  <button onClick={handleSubmit} className="bg-brand text-white px-4 py-2 rounded">
-                    {appointment.serviceType === "محصولات" ? "ثبت فروش" : "ثبت نوبت"}
-                  </button>
-                </div>
-              </>
-            )}
-          </>
-        )}
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
