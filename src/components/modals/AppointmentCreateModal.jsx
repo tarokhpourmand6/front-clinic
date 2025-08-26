@@ -200,7 +200,7 @@ export default function AppointmentCreateModal({
         let price = Number(unitPrice);
         if (!Number.isFinite(price)) {
           const p = (careProducts || []).find((x) => x._id === id);
-          price = Number(p?.sellPrice) || 0;
+          price = Number(p?.salePrice ?? p?.sellPrice) || 0;
         }
         total += price * (Number(qty) || 1);
       });
@@ -235,7 +235,7 @@ export default function AppointmentCreateModal({
               onChange={(e) => {
                 let next = [...(draft.serviceOption || [])];
                 if (e.target.checked) {
-                  next.push({ id: p._id, qty: 1, unitPrice: Number(p?.salePrice) || 0 });
+                  next.push({ id: p._id, qty: 1, unitPrice: Number(p?.salePrice ?? p?.sellPrice) || 0 });
                 } else {
                   next = next.filter((x) => x.id !== p._id);
                 }
