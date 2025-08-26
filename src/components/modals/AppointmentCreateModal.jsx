@@ -103,7 +103,7 @@ export default function AppointmentCreateModal({
           getAllProducts(),     // تزریقات: { name, salePrice, ... }
           getLaserPrices(),
           getPatientsFast(),
-          getCareProducts(),    // محصولات: { _id, name, brand, salePrice }
+          getCareProducts(),    // محصولات: { _id, name, brand, sellPrice }
           getFacialPackages(),  // فیشیال: { _id, name, price }
         ]);
 
@@ -200,7 +200,7 @@ export default function AppointmentCreateModal({
         let price = Number(unitPrice);
         if (!Number.isFinite(price)) {
           const p = (careProducts || []).find((x) => x._id === id);
-          price = Number(p?.salePrice) || 0;
+          price = Number(p?.sellPrice) || 0;
         }
         total += price * (Number(qty) || 1);
       });
