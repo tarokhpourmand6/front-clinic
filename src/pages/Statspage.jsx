@@ -1,5 +1,4 @@
 // src/pages/StatsPage.jsx
-// نسخه کامل و به‌روز بر اساس /api/stats/sales با KPIهای جدید: MoM/YoY، LTV، Sales Cycle
 import { useEffect, useMemo, useState } from "react";
 import DatePicker from "../components/DatePicker/DatePicker";
 import "../components/DatePicker/DatePicker.css";
@@ -7,6 +6,7 @@ import { getSalesStats } from "../api/stats";
 import { toPersianNumber } from "../utils/number";
 import { useNavigate } from "react-router-dom";
 
+/* ---------- helpers ---------- */
 const toISO = (v) => {
   if (!v) return null;
   if (typeof v === "string") return v; // فرض: ISO
@@ -16,13 +16,23 @@ const toISO = (v) => {
   }
   return null;
 };
-const fmt = (n = 0) => Number(n || 0).toLocaleString("fa-IR");
-const pct = (n = 0) => `${Number(n || 0).toLocaleString("fa-IR")}%`;
 
+// همیشه یک متن امن برگردان؛ نذاره Object به JSX راه پیدا کنه
+const toText = (v) => {
+  if (v == null) return "—";
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "string") return String(v);
+  try { return JSON.stringify(v); } catch { return "—"; }
+};
+
+const fmtNum = (n = 0) => Number(n || 0).toLocaleString("fa-IR");
+const fmtTomans = (n = 0) => `${toPersianNumber(fmtNum(n))} تومان`;
+const fmtPct = (n = 0) => `${toPersianNumber(Number(n || 0).toLocaleString("fa-IR"))}%`;
+
+/* ---------- component ---------- */
 export default function StatsPage() {
   const navigate = useNavigate();
 
-  // ✳️ ورود با پسورد ساده
+  // گِیت ساده
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const handlePasswordSubmit = () => {
@@ -30,26 +40,23 @@ export default function StatsPage() {
     else alert("رمز عبور نادرست است");
   };
 
-  // بازه پیش‌فرض: اول ماه جاری تا امروز
+  // بازه پیش‌فرض (با null شروع می‌کنیم تا DatePicker شما که جلالی می‌خواهد، گیر نکند)
   const now = new Date();
-  const startDefault = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const endDefault = now.toISOString();
+  const startDefaultISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const endDefaultISO = now.toISOString();
 
-  const [dateRange, setDateRange] = useState({ from: startDefault, to: endDefault });
-  const [group, setGroup] = useState("day"); // "day" | "month"
+  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [group, setGroup] = useState("day");
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const query = useMemo(
-    () => ({
-      start: toISO(dateRange.from),
-      end: toISO(dateRange.to),
-      group,
-    }),
-    [dateRange, group]
-  );
+  const query = useMemo(() => {
+    const start = toISO(dateRange.from);
+    const end = toISO(dateRange.to);
+    return { start, end, group };
+  }, [dateRange, group]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -60,7 +67,8 @@ export default function StatsPage() {
         const data = await getSalesStats(query);
         setStats(data);
       } catch (e) {
-        setErr(e.message || "خطا در دریافت آمار");
+        setErr(e?.message || "خطا در دریافت آمار");
+        setStats(null);
       } finally {
         setLoading(false);
       }
@@ -87,38 +95,43 @@ export default function StatsPage() {
     );
   }
 
-  // ── استخراج داده‌ها
-  const byService = stats?.byService || [];
-  const findRev = (serviceType) =>
-    byService.find((s) => (s.serviceType || "").toLowerCase() === serviceType)?.revenue || 0;
+  /* ----- extract safely ----- */
+  const byService = Array.isArray(stats?.byService) ? stats.byService : [];
+  const findRev = (name) =>
+    byService.find((s) => String(s?.serviceType || "").toLowerCase() === name)?.revenue || 0;
 
   const injectionRevenue = findRev("injection");
   const laserRevenue = findRev("laser");
 
-  const totalRevenue = stats?.kpis?.totalRevenue || 0;
-  const ordersDone = stats?.kpis?.ordersDone || 0;
-  const aov = stats?.kpis?.aov || 0;
-  const profit = stats?.kpis?.profit || 0;
-  const marginPct = stats?.kpis?.marginPct || 0;
-  const retentionRate = stats?.kpis?.retentionRate || 0;
+  const kpis = stats?.kpis || {};
+  const totalRevenue = Number(kpis?.totalRevenue || 0);
+  const ordersDone = Number(kpis?.ordersDone || 0);
+  const aov = Number(kpis?.aov || 0);
+  const profit = Number(kpis?.profit || 0);
+  const marginPct = Number(kpis?.marginPct || 0);
+  const retentionRate = Number(kpis?.retentionRate || 0);
 
-  const growthMoM = stats?.growth?.MoM || 0;
-  const growthYoY = stats?.growth?.YoY || 0;
+  const growth = stats?.growth || {};
+  const growthMoM = Number(growth?.MoM || 0);
+  const growthYoY = Number(growth?.YoY || 0);
 
-  const ltvAvg = stats?.ltv?.avg || 0;
-  const ltvP50 = stats?.ltv?.p50 || 0;
-  const ltvP90 = stats?.ltv?.p90 || 0;
+  const ltv = stats?.ltv || {};
+  const ltvAvg = Number(ltv?.avg || 0);
+  const ltvP50 = Number(ltv?.p50 || 0);
+  const ltvP90 = Number(ltv?.p90 || 0);
 
-  const cycleAvg = stats?.salesCycle?.avgDays || 0;
-  const cycleP75 = stats?.salesCycle?.p75 || 0;
-  const cycleP90 = stats?.salesCycle?.p90 || 0;
+  const salesCycle = stats?.salesCycle || {};
+  const cycleAvg = Number(salesCycle?.avgDays || 0);
+  const cycleP75 = Number(salesCycle?.p75 || 0);
+  const cycleP90 = Number(salesCycle?.p90 || 0);
 
   const paymentSummary = useMemo(() => {
-    const src = stats?.byPaymentMethod || [];
+    const rows = Array.isArray(stats?.byPaymentMethod) ? stats.byPaymentMethod : [];
     const map = {};
-    src.forEach((row) => {
-      const key = row.method || "priceOnly";
-      map[key] = (map[key] || 0) + (row.revenue || 0);
+    rows.forEach((r) => {
+      const method = r?.method ?? "priceOnly";
+      const amount = Number(r?.revenue || 0);
+      map[method] = (map[method] || 0) + amount;
     });
     return map;
   }, [stats]);
@@ -162,7 +175,7 @@ export default function StatsPage() {
         </select>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setDateRange({ from: startDefault, to: endDefault })}
+            onClick={() => setDateRange({ from: startDefaultISO, to: endDefaultISO })}
             className="bg-gray-100 hover:bg-gray-200 rounded px-4 py-2 text-sm"
           >
             بازه: این ماه
@@ -179,27 +192,27 @@ export default function StatsPage() {
       {/* Errors / Loading */}
       {err && (
         <div className="text-red-600 text-sm border border-red-200 bg-red-50 p-2 rounded mb-4">
-          {err}
+          {toText(err)}
         </div>
       )}
       {loading && <div className="animate-pulse text-gray-500 mb-4">در حال بارگذاری…</div>}
 
       {/* KPI Row 1 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card title="درآمد کل" color="border-blue-500" value={`${toPersianNumber(fmt(totalRevenue))} تومان`} />
-        <Card title="سود خالص" color="border-green-600" value={`${toPersianNumber(fmt(profit))} تومان`} />
-        <Card title="حاشیه سود" color="border-emerald-500" value={toPersianNumber(pct(marginPct))} />
-        <Card title="میانگین هر نوبت (AOV)" color="border-cyan-600" value={`${toPersianNumber(fmt(aov))} تومان`} />
-        <Card title="نرخ حفظ مشتری" color="border-indigo-500" value={toPersianNumber(pct(retentionRate))} />
+        <Card title="درآمد کل" color="border-blue-500" value={fmtTomans(totalRevenue)} />
+        <Card title="سود خالص" color="border-green-600" value={fmtTomans(profit)} />
+        <Card title="حاشیه سود" color="border-emerald-500" value={fmtPct(marginPct)} />
+        <Card title="میانگین هر نوبت (AOV)" color="border-cyan-600" value={fmtTomans(aov)} />
+        <Card title="نرخ حفظ مشتری" color="border-indigo-500" value={fmtPct(retentionRate)} />
       </div>
 
       {/* KPI Row 2 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card title="درآمد تزریقات" color="border-pink-500" value={`${toPersianNumber(fmt(injectionRevenue))} تومان`} />
-        <Card title="درآمد لیزر" color="border-purple-500" value={`${toPersianNumber(fmt(laserRevenue))} تومان`} />
-        <Card title="نوبت‌های انجام‌شده" color="border-gray-500" value={toPersianNumber(fmt(ordersDone))} />
-        <Card title="رشد ماهانه (MoM)" color="border-amber-500" value={toPersianNumber(pct(growthMoM))} />
-        <Card title="رشد سالانه (YoY)" color="border-orange-600" value={toPersianNumber(pct(growthYoY))} />
+        <Card title="درآمد تزریقات" color="border-pink-500" value={fmtTomans(injectionRevenue)} />
+        <Card title="درآمد لیزر" color="border-purple-500" value={fmtTomans(laserRevenue)} />
+        <Card title="نوبت‌های انجام‌شده" color="border-gray-500" value={toPersianNumber(fmtNum(ordersDone))} />
+        <Card title="رشد ماهانه (MoM)" color="border-amber-500" value={fmtPct(growthMoM)} />
+        <Card title="رشد سالانه (YoY)" color="border-orange-600" value={fmtPct(growthYoY)} />
       </div>
 
       {/* KPI Row 3 */}
@@ -207,8 +220,8 @@ export default function StatsPage() {
         <Card
           title="LTV میانگین"
           color="border-teal-600"
-          value={`${toPersianNumber(fmt(ltvAvg))} تومان`}
-          sub={`${toPersianNumber(fmt(ltvP50))} (میانه) • ${toPersianNumber(fmt(ltvP90))} (P90)`}
+          value={fmtTomans(ltvAvg)}
+          sub={`${fmtTomans(ltvP50)} (میانه) • ${fmtTomans(ltvP90)} (P90)`}
         />
         <Card
           title="میانگین چرخه فروش (روز)"
@@ -221,8 +234,8 @@ export default function StatsPage() {
         <Card
           title="میانگین × تعداد"
           color="border-fuchsia-600"
-          value={`${toPersianNumber(fmt(aov))} × ${toPersianNumber(fmt(ordersDone))}`}
-          sub={`≈ ${toPersianNumber(fmt(aov * ordersDone))} تومان`}
+          value={`${fmtTomans(aov)} × ${toPersianNumber(fmtNum(ordersDone))}`}
+          sub={`≈ ${fmtTomans(aov * ordersDone)}`}
         />
       </div>
 
@@ -231,14 +244,14 @@ export default function StatsPage() {
         <h2 className="font-semibold mb-3">مبالغ بر اساس روش پرداخت</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
           {Object.entries(paymentSummary).map(([method, amount]) => (
-            <div key={method} className="bg-white shadow p-4 rounded-xl text-center border-t-4 border-yellow-500">
-              <p className="text-gray-600 mb-1">{method}</p>
-              <p className="text-lg font-bold">{toPersianNumber(fmt(amount))} تومان</p>
+            <div key={toText(method)} className="bg-white shadow p-4 rounded-xl text-center border-t-4 border-yellow-500">
+              <p className="text-gray-600 mb-1">{toText(method)}</p>
+              <p className="text-lg font-bold">{fmtTomans(amount)}</p>
             </div>
           ))}
           <div className="bg-white shadow p-4 rounded-xl text-center border-t-4 border-gray-600">
             <p className="text-gray-600 mb-1">جمع کل</p>
-            <p className="text-lg font-bold">{toPersianNumber(fmt(totalRevenue))} تومان</p>
+            <p className="text-lg font-bold">{fmtTomans(totalRevenue)}</p>
           </div>
         </div>
       </section>
@@ -246,13 +259,13 @@ export default function StatsPage() {
   );
 }
 
-/* ---------- کامپوننت کارت KPI ---------- */
+/* ---------- Card ---------- */
 function Card({ title, value, sub, color = "border-blue-500" }) {
   return (
     <div className={`bg-white shadow p-4 rounded-xl text-center border-t-4 ${color}`}>
       <p className="text-gray-600 mb-1">{title}</p>
-      <p className="text-lg font-bold">{value}</p>
-      {sub ? <p className="text-xs text-gray-500 mt-1">{sub}</p> : null}
+      <p className="text-lg font-bold">{toText(value)}</p>
+      {sub ? <p className="text-xs text-gray-500 mt-1">{toText(sub)}</p> : null}
     </div>
   );
 }
