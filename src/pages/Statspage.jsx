@@ -1,5 +1,5 @@
 // src/pages/StatsPage.jsx
-// نسخه کامل و پایدار: DatePicker با فرمت {year,month,day} + KPIها + محافظت در برابر رندر آبجکت
+// نسخه پایدار: DatePicker با فرمت {year,month,day} + KPIها + محافظت کامل با safeText
 import { useEffect, useMemo, useState } from "react";
 import DatePicker from "../components/DatePicker/DatePicker";
 import "../components/DatePicker/DatePicker.css";
@@ -8,32 +8,22 @@ import { toPersianNumber } from "../utils/number";
 import { useNavigate } from "react-router-dom";
 
 /* ---------- Helpers ---------- */
-// ساخت آبجکت جلالی برای DatePicker از Date
-const toPicker = (d) => ({
-  year: d.getFullYear(),
-  month: d.getMonth() + 1,
-  day: d.getDate(),
-});
-
-// تبدیل مقدار DatePicker به ISO (یا null)
+const toPicker = (d) => ({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
 const pickerToISO = (v) => {
   if (!v) return null;
-  if (typeof v === "string") return v; // اگر جایی رشته بود
+  if (typeof v === "string") return v;
   if (typeof v.year === "number" && typeof v.month === "number" && typeof v.day === "number") {
     const d = new Date(v.year, v.month - 1, v.day, 0, 0, 0, 0);
     return d.toISOString();
   }
   return null;
 };
-
-// متن امن برای JSX
 const safeText = (v) => {
   if (v == null) return "—";
-  if (typeof v === "number" || typeof v === "boolean" || typeof v === "string") return String(v);
+  const t = typeof v;
+  if (t === "string" || t === "number" || t === "boolean") return String(v);
   try { return JSON.stringify(v); } catch { return "—"; }
 };
-
-// فرمت‌ها
 const fmtNum = (n = 0) => Number(n || 0).toLocaleString("fa-IR");
 const fmtTomans = (n = 0) => `${toPersianNumber(fmtNum(n))} تومان`;
 const fmtPct = (n = 0) => `${toPersianNumber(Number(n || 0).toLocaleString("fa-IR"))}%`;
@@ -41,7 +31,7 @@ const fmtPct = (n = 0) => `${toPersianNumber(Number(n || 0).toLocaleString("fa-I
 export default function StatsPage() {
   const navigate = useNavigate();
 
-  /* ---- Gate (رمز) ---- */
+  // گیت ساده
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const handlePasswordSubmit = () => {
@@ -49,29 +39,22 @@ export default function StatsPage() {
     else alert("رمز عبور نادرست است");
   };
 
-  /* ---- تاریخ‌ها (همیشه در state به فرمت DatePicker) ---- */
+  // تاریخ‌ها به فرمت مورد انتظار DatePicker
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const [dateRange, setDateRange] = useState({
-    from: toPicker(startOfMonth), // ← آبجکت جلالی
-    to: toPicker(now),            // ← آبجکت جلالی
-  });
-
+  const [dateRange, setDateRange] = useState({ from: toPicker(startOfMonth), to: toPicker(now) });
   const [group, setGroup] = useState("day"); // "day" | "month"
 
-  /* ---- Data ---- */
+  // دیتا
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const query = useMemo(() => {
-    return {
-      start: pickerToISO(dateRange.from),
-      end: pickerToISO(dateRange.to),
-      group,
-    };
-  }, [dateRange, group]);
+  const query = useMemo(() => ({
+    start: pickerToISO(dateRange.from),
+    end: pickerToISO(dateRange.to),
+    group,
+  }), [dateRange, group]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -118,13 +101,13 @@ export default function StatsPage() {
     );
   }
 
-  /* ----- استخراج امن ----- */
+  // استخراج امن
   const byService = Array.isArray(stats?.byService) ? stats.byService : [];
   const findRev = (name) =>
     byService.find((s) => String(s?.serviceType || "").toLowerCase() === name)?.revenue || 0;
 
-  const injectionRevenue = findRev("injection");
-  const laserRevenue = findRev("laser");
+  const injectionRevenue = Number(findRev("injection") || 0);
+  const laserRevenue = Number(findRev("laser") || 0);
 
   const kpis = stats?.kpis || {};
   const totalRevenue = Number(kpis?.totalRevenue || 0);
@@ -175,7 +158,7 @@ export default function StatsPage() {
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 rounded-2xl border p-3 bg-white">
         <DatePicker
-          value={dateRange.from} // ← دقیقا همان فرمتی که کامپوننت می‌خواهد
+          value={dateRange.from}
           onChange={(val) => setDateRange((p) => ({ ...p, from: val }))}
           inputPlaceholder="از تاریخ"
           inputClassName="border p-2 rounded w-full"
@@ -188,11 +171,7 @@ export default function StatsPage() {
           inputClassName="border p-2 rounded w-full"
           locale="fa"
         />
-        <select
-          className="border rounded px-3 py-2"
-          value={group}
-          onChange={(e) => setGroup(e.target.value)}
-        >
+        <select className="border rounded px-3 py-2" value={group} onChange={(e) => setGroup(e.target.value)}>
           <option value="day">روزانه</option>
           <option value="month">ماهانه</option>
         </select>
@@ -222,20 +201,20 @@ export default function StatsPage() {
 
       {/* KPI Row 1 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card title="درآمد کل" color="border-blue-500" value={fmtTomans(totalRevenue)} />
-        <Card title="سود خالص" color="border-green-600" value={fmtTomans(profit)} />
-        <Card title="حاشیه سود" color="border-emerald-500" value={fmtPct(marginPct)} />
-        <Card title="میانگین هر نوبت (AOV)" color="border-cyan-600" value={fmtTomans(aov)} />
-        <Card title="نرخ حفظ مشتری" color="border-indigo-500" value={fmtPct(retentionRate)} />
+        <Card title="درآمد کل" color="border-blue-500" value={safeText(fmtTomans(totalRevenue))} />
+        <Card title="سود خالص" color="border-green-600" value={safeText(fmtTomans(profit))} />
+        <Card title="حاشیه سود" color="border-emerald-500" value={safeText(fmtPct(marginPct))} />
+        <Card title="میانگین هر نوبت (AOV)" color="border-cyan-600" value={safeText(fmtTomans(aov))} />
+        <Card title="نرخ حفظ مشتری" color="border-indigo-500" value={safeText(fmtPct(retentionRate))} />
       </div>
 
       {/* KPI Row 2 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card title="درآمد تزریقات" color="border-pink-500" value={fmtTomans(injectionRevenue)} />
-        <Card title="درآمد لیزر" color="border-purple-500" value={fmtTomans(laserRevenue)} />
-        <Card title="نوبت‌های انجام‌شده" color="border-gray-500" value={toPersianNumber(fmtNum(ordersDone))} />
-        <Card title="رشد ماهانه (MoM)" color="border-amber-500" value={fmtPct(growthMoM)} />
-        <Card title="رشد سالانه (YoY)" color="border-orange-600" value={fmtPct(growthYoY)} />
+        <Card title="درآمد تزریقات" color="border-pink-500" value={safeText(fmtTomans(injectionRevenue))} />
+        <Card title="درآمد لیزر" color="border-purple-500" value={safeText(fmtTomans(laserRevenue))} />
+        <Card title="نوبت‌های انجام‌شده" color="border-gray-500" value={safeText(toPersianNumber(fmtNum(ordersDone)))} />
+        <Card title="رشد ماهانه (MoM)" color="border-amber-500" value={safeText(fmtPct(growthMoM))} />
+        <Card title="رشد سالانه (YoY)" color="border-orange-600" value={safeText(fmtPct(growthYoY))} />
       </div>
 
       {/* KPI Row 3 */}
@@ -243,22 +222,24 @@ export default function StatsPage() {
         <Card
           title="LTV میانگین"
           color="border-teal-600"
-          value={fmtTomans(ltvAvg)}
-          sub={`${fmtTomans(ltvP50)} (میانه) • ${fmtTomans(ltvP90)} (P90)`}
+          value={safeText(fmtTomans(ltvAvg))}
+          sub={safeText(`${fmtTomans(ltvP50)} (میانه) • ${fmtTomans(ltvP90)} (P90)`)}
         />
         <Card
           title="میانگین چرخه فروش (روز)"
           color="border-sky-600"
-          value={toPersianNumber(Number(cycleAvg || 0).toLocaleString("fa-IR"))}
-          sub={`${toPersianNumber(Number(cycleP75 || 0).toLocaleString("fa-IR"))} (P75) • ${toPersianNumber(
-            Number(cycleP90 || 0).toLocaleString("fa-IR")
-          )} (P90)`}
+          value={safeText(toPersianNumber(Number(cycleAvg || 0).toLocaleString("fa-IR")))}
+          sub={safeText(
+            `${toPersianNumber(Number(cycleP75 || 0).toLocaleString("fa-IR"))} (P75) • ${toPersianNumber(
+              Number(cycleP90 || 0).toLocaleString("fa-IR")
+            )} (P90)`
+          )}
         />
         <Card
           title="میانگین × تعداد"
           color="border-fuchsia-600"
-          value={`${fmtTomans(aov)} × ${toPersianNumber(fmtNum(ordersDone))}`}
-          sub={`≈ ${fmtTomans(aov * ordersDone)}`}
+          value={safeText(`${fmtTomans(aov)} × ${toPersianNumber(fmtNum(ordersDone))}`)}
+          sub={safeText(`≈ ${fmtTomans(aov * ordersDone)}`)}
         />
       </div>
 
@@ -269,12 +250,12 @@ export default function StatsPage() {
           {Object.entries(paymentSummary).map(([method, amount]) => (
             <div key={safeText(method)} className="bg-white shadow p-4 rounded-xl text-center border-t-4 border-yellow-500">
               <p className="text-gray-600 mb-1">{safeText(method)}</p>
-              <p className="text-lg font-bold">{fmtTomans(amount)}</p>
+              <p className="text-lg font-bold">{safeText(fmtTomans(amount))}</p>
             </div>
           ))}
           <div className="bg-white shadow p-4 rounded-xl text-center border-t-4 border-gray-600">
             <p className="text-gray-600 mb-1">جمع کل</p>
-            <p className="text-lg font-bold">{fmtTomans(totalRevenue)}</p>
+            <p className="text-lg font-bold">{safeText(fmtTomans(totalRevenue))}</p>
           </div>
         </div>
       </section>
@@ -286,7 +267,7 @@ export default function StatsPage() {
 function Card({ title, value, sub, color = "border-blue-500" }) {
   return (
     <div className={`bg-white shadow p-4 rounded-xl text-center border-t-4 ${color}`}>
-      <p className="text-gray-600 mb-1">{title}</p>
+      <p className="text-gray-600 mb-1">{safeText(title)}</p>
       <p className="text-lg font-bold">{safeText(value)}</p>
       {sub ? <p className="text-xs text-gray-500 mt-1">{safeText(sub)}</p> : null}
     </div>
