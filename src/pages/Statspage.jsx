@@ -1,8 +1,11 @@
 // src/pages/StatsPage.jsx
-// مرحله ۳: اتصال امن به API (بدون DatePicker)
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSalesStats } from "../api/stats";
+import { getInjectionBreakdown, getInjectionById } from "../api/statsInjections";
+
+import DatePicker from "../components/DatePicker/DatePicker";
+import "../components/DatePicker/DatePicker.css";
 
 /* ---------- helpers ---------- */
 const safeText = (v) => {
@@ -15,10 +18,24 @@ const toFa = (n = 0) => Number(n || 0).toLocaleString("fa-IR");
 const tomans = (n = 0) => `${toFa(n)} تومان`;
 const pct = (n = 0) => `${toFa(Number(n || 0))}%`;
 
+// تبدیل خروجی DatePicker {year,month,day} به 'YYYY-MM-DD'
+const pickerToISO = (p) => {
+  if (!p || !Number(p.year) || !Number(p.month) || !Number(p.day)) return undefined;
+  const y = Number(p.year), m = Number(p.month), d = Number(p.day);
+  // فرض ساده: تاریخ دریافتی گرگوری است (اگر جلالی است، DatePicker شما معمولاً خودش تبدیل می‌کند.
+  // در غیر این صورت، اینجا می‌توانیم مبدل جلالی↔گرگوری اضافه کنیم.)
+  const dt = new Date(y, m - 1, d);
+  if (isNaN(dt.getTime())) return undefined;
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 export default function StatsPage() {
   const navigate = useNavigate();
 
-  // درگاه ساده ورود
+  /* ---------- درگاه ساده ورود ---------- */
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const onSubmit = () => {
@@ -26,30 +43,41 @@ export default function StatsPage() {
     else alert("رمز عبور نادرست است");
   };
 
-  // حالت‌ها
+  /* ---------- فیلترهای گزارش ---------- */
   const [group, setGroup] = useState("day"); // day | month
+  const [dateRange, setDateRange] = useState({ from: null, to: null });
+
+  // ISO برای API
+  const startISO = useMemo(() => pickerToISO(dateRange.from), [dateRange.from]);
+  const endISO = useMemo(() => pickerToISO(dateRange.to), [dateRange.to]);
+
+  /* ---------- وضعیت لود ---------- */
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [stats, setStats] = useState(null);
 
-  const query = useMemo(() => ({ group }), [group]);
+  const loadStats = useCallback(async () => {
+    if (!authenticated) return;
+    setLoading(true);
+    setErr("");
+    try {
+      const data = await getSalesStats({
+        group,
+        start: startISO,
+        end: endISO,
+      });
+      setStats(data);
+    } catch (e) {
+      setErr(e?.message || "خطا در دریافت آمار");
+      setStats(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [authenticated, group, startISO, endISO]);
 
   useEffect(() => {
-    if (!authenticated) return;
-    (async () => {
-      setLoading(true);
-      setErr("");
-      try {
-        const data = await getSalesStats(query); // بدون start/end → بک‌اند خودش بازه پیش‌فرض می‌گیرد
-        setStats(data);
-      } catch (e) {
-        setErr(e?.message || "خطا در دریافت آمار");
-        setStats(null);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [authenticated, query]);
+    loadStats();
+  }, [loadStats]);
 
   if (!authenticated) {
     return (
@@ -79,7 +107,7 @@ export default function StatsPage() {
     );
   }
 
-  // استخراج امن
+  /* ---------- استخراج امن ---------- */
   const kpis = stats?.kpis || {};
   const totalRevenue = Number(kpis?.totalRevenue || 0);
   const profit = Number(kpis?.profit || 0);
@@ -110,6 +138,37 @@ export default function StatsPage() {
 
   const paymentRows = Array.isArray(stats?.byPaymentMethod) ? stats.byPaymentMethod : [];
 
+  /* ---------- مودال ریز تزریقات ---------- */
+  const [injOpen, setInjOpen] = useState(false);
+  const [injRows, setInjRows] = useState([]);
+  const [injLoading, setInjLoading] = useState(false);
+  const [injDetail, setInjDetail] = useState(null);
+
+  const loadInjections = useCallback(async () => {
+    setInjLoading(true);
+    try {
+      const data = await getInjectionBreakdown({
+        start: startISO || undefined,
+        end: endISO || undefined,
+      });
+      setInjRows(data);
+    } finally {
+      setInjLoading(false);
+    }
+  }, [startISO, endISO]);
+
+  const openInjectionModal = async () => {
+    setInjOpen(true);
+    await loadInjections();
+  };
+
+  const openInjectionDetail = async (id) => {
+    const d = await getInjectionById(id);
+    setInjDetail(d);
+  };
+
+  const clearDates = () => setDateRange({ from: null, to: null });
+
   return (
     <div className="p-6 max-w-7xl mx-auto font-vazir">
       {/* Header */}
@@ -125,10 +184,52 @@ export default function StatsPage() {
             <option value="month">ماهانه</option>
           </select>
           <button
+            onClick={openInjectionModal}
+            className="border border-brand text-brand rounded px-3 py-2 text-sm"
+          >
+            ریز تزریقات
+          </button>
+          <button
             onClick={() => navigate("/dashboard")}
             className="border border-brand text-brand rounded px-4 py-2"
           >
             ← بازگشت به داشبورد
+          </button>
+        </div>
+      </div>
+
+      {/* Date filters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <DatePicker
+          value={dateRange.from}
+          onChange={(val) => setDateRange((p) => ({ ...p, from: val }))}
+          inputPlaceholder="از تاریخ"
+          inputClassName="border p-2 rounded w-full"
+          locale="fa"
+        />
+        <DatePicker
+          value={dateRange.to}
+          onChange={(val) => setDateRange((p) => ({ ...p, to: val }))}
+          inputPlaceholder="تا تاریخ"
+          inputClassName="border p-2 rounded w-full"
+          locale="fa"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={loadStats}
+            className="bg-brand text-white rounded px-4 py-2 w-full md:w-auto"
+          >
+            اعمال فیلتر
+          </button>
+          <button
+            onClick={() => {
+              clearDates();
+              // بعد از پاک کردن، دوباره لود می‌کنیم
+              setTimeout(loadStats, 0);
+            }}
+            className="bg-gray-200 rounded px-4 py-2 w-full md:w-auto text-sm"
+          >
+            پاک‌کردن
           </button>
         </div>
       </div>
@@ -197,6 +298,111 @@ export default function StatsPage() {
           </div>
         </div>
       </section>
+
+      {/* Modal: Injection Breakdown */}
+      {injOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl w-full max-w-5xl p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-lg">ریز تزریقات (مصرفی + دریافتی)</h3>
+              <button onClick={() => { setInjOpen(false); setInjDetail(null); }} className="text-gray-500">✕</button>
+            </div>
+
+            {/* از همان بازه‌ی صفحه استفاده می‌کنیم */}
+            <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500 mb-2">
+              <span>بازه فعال گزارش:</span>
+              <code className="bg-gray-100 px-2 py-1 rounded">
+                {startISO || "—"} ⟶ {endISO || "—"}
+              </code>
+              <button onClick={loadInjections} className="ml-auto border border-brand text-brand rounded px-3 py-1">
+                به‌روزرسانی
+              </button>
+            </div>
+
+            {/* جدول لیست نوبت‌ها */}
+            <div className="overflow-auto border rounded">
+              <table className="min-w-[900px] w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="p-2 text-right">تاریخ</th>
+                    <th className="p-2 text-right">بیمار</th>
+                    <th className="p-2 text-right">#اقلام</th>
+                    <th className="p-2 text-right">هزینه مصرفی</th>
+                    <th className="p-2 text-right">دریافتی</th>
+                    <th className="p-2 text-right">سود</th>
+                    <th className="p-2 text-right">جزئیات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {injLoading && (
+                    <tr><td colSpan={7} className="p-4 text-center">در حال بارگذاری…</td></tr>
+                  )}
+                  {!injLoading && injRows.length === 0 && (
+                    <tr><td colSpan={7} className="p-4 text-center">رکوردی یافت نشد</td></tr>
+                  )}
+                  {!injLoading && injRows.map(r => (
+                    <tr key={r.appointmentId} className="border-t">
+                      <td className="p-2">{r.dateShamsi || "-"}</td>
+                      <td className="p-2">{r.patientName || r.patientId}</td>
+                      <td className="p-2">{(r.items?.length || 0)}</td>
+                      <td className="p-2">{(r.costTotal || 0).toLocaleString()} تومان</td>
+                      <td className="p-2">{(r.revenue || 0).toLocaleString()} تومان</td>
+                      <td className="p-2 font-bold">{((r.profit||0)).toLocaleString()} تومان</td>
+                      <td className="p-2">
+                        <button className="text-brand underline" onClick={()=>openInjectionDetail(r.appointmentId)}>
+                          مشاهده
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* زیرمودال: جزئیات یک نوبت */}
+            {injDetail && (
+              <div className="mt-4 border rounded p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="font-bold">جزئیات نوبت | تاریخ: {injDetail.dateShamsi || "-"}</div>
+                  <button className="text-gray-500" onClick={()=>setInjDetail(null)}>بستن جزئیات</button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mb-3">
+                  <div className="bg-gray-50 rounded p-2">دریافتی: {(injDetail.revenue||0).toLocaleString()} تومان</div>
+                  <div className="bg-gray-50 rounded p-2">هزینه مصرفی: {(injDetail.costTotal||0).toLocaleString()} تومان</div>
+                  <div className="bg-gray-50 rounded p-2 font-bold">سود: {(((injDetail.revenue||0)-(injDetail.costTotal||0))).toLocaleString()} تومان</div>
+                </div>
+                <div className="overflow-auto border rounded">
+                  <table className="min-w-[650px] w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-2 text-right">محصول</th>
+                        <th className="p-2 text-right">واحد</th>
+                        <th className="p-2 text-right">مصرف</th>
+                        <th className="p-2 text-right">قیمت واحد (میانگین خرید)</th>
+                        <th className="p-2 text-right">هزینه قلم</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(injDetail.items||[]).map((it, idx)=>(
+                        <tr key={idx} className="border-t">
+                          <td className="p-2">{it.name || "-"}</td>
+                          <td className="p-2">{it.unit || "-"}</td>
+                          <td className="p-2">{it.amountUsed ?? 0}</td>
+                          <td className="p-2">{(it.avgUnitCost||0).toLocaleString()} تومان</td>
+                          <td className="p-2">{(it.lineCost||0).toLocaleString()} تومان</td>
+                        </tr>
+                      ))}
+                      {(!injDetail.items || injDetail.items.length===0) && (
+                        <tr><td colSpan={5} className="p-3 text-center">مصرفی ثبت نشده.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
