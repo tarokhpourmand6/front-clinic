@@ -40,13 +40,36 @@ export default function StatsPage() {
     );
   }
 
-  // پس از ورود: فقط یک متن ساده (هیچ آبجکت/کامپوننت پیچیده‌ای رندر نمی‌شود)
+  // بعد از ورود: KPI استاتیک
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 font-vazir">
-      <div className="bg-white shadow rounded-2xl p-8 text-center">
-        <h1 className="text-xl font-bold mb-2">ورود موفق ✅</h1>
-        <p className="text-gray-600">این نسخه‌ی پایه است. اگر این را می‌بینی یعنی مشکل از خود صفحه‌ی گزارش نبود.</p>
+    <div className="p-6 max-w-7xl mx-auto font-vazir">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+        <h1 className="text-xl md:text-2xl font-bold">📊 گزارشات فروش</h1>
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="border border-brand text-brand rounded px-4 py-2"
+        >
+          ← بازگشت به داشبورد
+        </button>
       </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <Card title="درآمد کل" color="border-blue-500" value="۱۲۰,۰۰۰ تومان" />
+        <Card title="سود خالص" color="border-green-600" value="۸۰,۰۰۰ تومان" />
+        <Card title="حاشیه سود" color="border-emerald-500" value="۶۷٪" />
+        <Card title="میانگین هر نوبت (AOV)" color="border-cyan-600" value="۴۰,۰۰۰ تومان" />
+        <Card title="نرخ حفظ مشتری" color="border-indigo-500" value="۷۵٪" />
+      </div>
+    </div>
+  );
+}
+
+function Card({ title, value, sub, color = "border-blue-500" }) {
+  return (
+    <div className={`bg-white shadow p-4 rounded-xl text-center border-t-4 ${color}`}>
+      <p className="text-gray-600 mb-1">{title}</p>
+      <p className="text-lg font-bold">{value}</p>
+      {sub ? <p className="text-xs text-gray-500 mt-1">{sub}</p> : null}
     </div>
   );
 }
