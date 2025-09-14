@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
+// src/components/LaserAreasModal.jsx
+import { useEffect, useMemo, useState } from "react";
 import { getLaserPrices } from "../../api/laserPrice";
 import useAppointmentsStore from "../../store/useAppointmentsStore";
 import { toast } from "react-toastify";
+import laserAreas from "../../constants/laserAreas"; // منبع مشترک لیست
 
 const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal }) => {
-  const [laserPrices, setLaserPrices] = useState([]);
+  const [laserPrices, setLaserPrices] = useState([]); // خام از API: [{gender, area, price}]
   const [gender, setGender] = useState("female");
-  const [selected, setSelected] = useState([]);
+  const [selected, setSelected] = useState([]);       // [{ area, price, gender }]
   const [total, setTotal] = useState(0);
-  const { updateAppointmentItem, fetchAppointments, appointments } = useAppointmentsStore();
+  const { updateAppointmentItem, fetchAppointments } = useAppointmentsStore();
 
   useEffect(() => {
     if (isOpen) {
       fetchData();
       setSelected([]);
+      setTotal(0);
     }
   }, [isOpen]);
 
@@ -26,44 +29,56 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal })
     }
   };
 
+  // priceMap: gender -> area(label) -> number
+  const priceMap = useMemo(() => {
+    const m = { female: {}, male: {} };
+    laserPrices.forEach((it) => {
+      const g = it.gender === "male" ? "male" : "female";
+      m[g][it.area] = Number(it.price || 0);
+    });
+    return m;
+  }, [laserPrices]);
+
+  // لیست نهایی نمایش: از constants + تزریق قیمت (اگر نبود => 0)
+  const displayList = useMemo(() => {
+    const base = [
+      ...laserAreas[gender].individual,
+      ...Object.keys(laserAreas[gender].packages),
+    ];
+    return base.map((label) => ({
+      area: label,
+      price: priceMap[gender]?.[label] ?? 0,
+      gender,
+    }));
+  }, [gender, priceMap]);
+
   const toggleArea = (area, price) => {
     const exists = selected.find((s) => s.area === area && s.gender === gender);
-    let updated;
-    if (exists) {
-      updated = selected.filter((s) => !(s.area === area && s.gender === gender));
-    } else {
-      updated = [...selected, { area, price, gender }];
-    }
+    const updated = exists
+      ? selected.filter((s) => !(s.area === area && s.gender === gender))
+      : [...selected, { area, price, gender }];
     setSelected(updated);
-    calculateTotal(updated);
-  };
-
-  const calculateTotal = (list) => {
-    const sum = list.reduce((acc, cur) => acc + (cur.price || 0), 0);
-    setTotal(sum);
+    setTotal(updated.reduce((acc, cur) => acc + (cur.price || 0), 0));
   };
 
   const handleSave = async () => {
-  try {
-    await updateAppointmentItem(appointmentId, {
-      laserAreas: selected,
-      price: total,
-    });
-    await fetchAppointments();
-    toast.success("✔️ نواحی لیزر ثبت شد");
-    onClose();
-
-    if (typeof onOpenPaymentModal === "function") {
-      onOpenPaymentModal(appointmentId, [], total); // ⬅️ آرایه خالی برای جلوگیری از تیک‌خوردن پیش‌فرض
+    try {
+      await updateAppointmentItem(appointmentId, {
+        laserAreas: selected, // [{area, price, gender}] بدون تغییر
+        price: total,
+      });
+      await fetchAppointments();
+      toast.success("✔️ نواحی لیزر ثبت شد");
+      onClose();
+      if (typeof onOpenPaymentModal === "function") {
+        onOpenPaymentModal(appointmentId, [], total);
+      }
+    } catch (err) {
+      toast.error("⛔️ خطا در ذخیره نواحی");
     }
-  } catch (err) {
-    toast.error("⛔️ خطا در ذخیره نواحی");
-  }
-};
+  };
 
   if (!isOpen) return null;
-
-  const filtered = laserPrices.filter((item) => item.gender === gender);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999990]">
@@ -87,8 +102,8 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal })
         </div>
 
         <div className="grid grid-cols-3 gap-3 max-h-80 overflow-y-auto text-sm mb-4">
-          {filtered.map((item, i) => (
-            <label key={i} className="flex items-center gap-2 cursor-pointer">
+          {displayList.map((item) => (
+            <label key={item.area} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={selected.some((s) => s.area === item.area && s.gender === gender)}
@@ -96,7 +111,7 @@ const LaserAreasModal = ({ isOpen, onClose, appointmentId, onOpenPaymentModal })
               />
               <span>{item.area}</span>
               <span className="text-gray-400 text-xs">
-                ({item.price?.toLocaleString("fa-IR")} تومان)
+                ({(item.price || 0).toLocaleString("fa-IR")} تومان)
               </span>
             </label>
           ))}
