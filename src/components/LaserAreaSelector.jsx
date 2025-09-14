@@ -1,49 +1,37 @@
-import React from 'react';
+// src/components/LaserAreaSelector.jsx
+import React, { useMemo } from "react";
+import laserAreas from "../constants/laserAreas"; // همون آبجکت مشترک
 
-const laserAreas = {
-  female: {
-    individual: [
-      'پشت لب', 'چانه', 'کل صورت', 'کل صورت و گردن', 'زیربغل', 'گردن',
-      'خط ناف', 'سینه', 'کل شکم و سینه', 'بازو', 'ساعد', 'کل دست', 'بیکینی',
-      'روی باسن', 'کشاله ران', 'ران', 'زانو', 'ساق', 'کل پا',
-      // 👇 آیتم‌های اضافه‌شده
-      'سری لیزر', 'عینک', 'پک اختصاصی'
-    ],
-    packages: {
-      'پکیج ۱': ['ساعد', 'کل پا', 'بیکینی', 'زیربغل'],
-      'پکیج ۲': ['بیکینی', 'زیربغل', 'صورت'],
-      'پکیج ۳': ['ساعد', 'ساق پا', 'بیکینی', 'زیربغل'],
-      'پکیج ۴': ['بیکینی', 'زیربغل', 'کل پا'],
-      'پکیج ۵': ['بیکینی', 'زیربغل', 'ساق پا'],
-      'پکیج ۶': ['کل بدن']
-    }
-  },
-  male: {
-    individual: [
-      'گوش', 'پشت گردن', 'زیر گردن', 'گونه', 'گونه پیشانی و بین ابرو', 'کتف تا کمر',
-      'کل شکم و سینه', 'کل دست', 'مایو', 'زیربغل', 'روی باسن', 'کشاله ران',
-      'ران', 'زانو', 'ساق پا', 'کل پا',
-      // 👇 آیتم‌های اضافه‌شده
-      'سری لیزر', 'عینک', 'پک اختصاصی'
-    ],
-    packages: {
-      'پکیج ۱': ['زیر بغل', 'مایو'],
-      'پکیج ۲': ['کل شکم', 'سینه', 'کتف تا کمر', 'کل دست'],
-      'پکیج ۳': ['مایو', 'روی باسن', 'کل پا'],
-      'پکیج ۴': ['پشت گردن', 'زیر گردن', 'خط گردن'],
-      'پکیج ۵': ['کل بدن']
-    }
-  }
+// نرمال‌سازی چند املای رایج برای سازگاری با دیتابیس/قیمت‌ها
+const normalize = (label = "") => {
+  const map = {
+    "زیر بغل": "زیربغل",
+    "ساق پا": "ساق",
+    "صورت": "کل صورت",
+    "کل بدن": "کل بدن", // برای آینده اگر معادل دیگری داشتی، اینجا اضافه کن
+  };
+  return map[label] || label;
 };
 
-export default function LaserAreaSelector({ gender, selectedAreas, onChange }) {
-  const areas = laserAreas[gender];
+export default function LaserAreaSelector({
+  gender = "female",
+  selectedAreas = [],
+  onChange,
+}) {
+  const areas = laserAreas[gender] || { individual: [], packages: {} };
+
+  // مجموعه‌ی انتخاب‌ها به‌صورت نرمال‌شده (برای تیک‌خوردن درست)
+  const selectedSet = useMemo(
+    () => new Set((selectedAreas || []).map(normalize)),
+    [selectedAreas]
+  );
 
   const handleToggle = (value) => {
-    const newSelection = selectedAreas.includes(value)
-      ? selectedAreas.filter((a) => a !== value)
-      : [...selectedAreas, value];
-    onChange(newSelection);
+    const norm = normalize(value);
+    const next = new Set(selectedSet);
+    if (next.has(norm)) next.delete(norm);
+    else next.add(norm);
+    onChange?.(Array.from(next)); // برگردوندن آرایه نرمال‌شده
   };
 
   return (
@@ -51,12 +39,12 @@ export default function LaserAreaSelector({ gender, selectedAreas, onChange }) {
       <div>
         <h4 className="font-bold text-gray-700 mb-2">نواحی تکی:</h4>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {areas.individual.map((item, idx) => (
-            <label key={idx} className="flex items-center gap-2">
+          {areas.individual.map((item) => (
+            <label key={item} className="flex items-center gap-2">
               <input
                 type="checkbox"
                 value={item}
-                checked={selectedAreas.includes(item)}
+                checked={selectedSet.has(normalize(item))}
                 onChange={() => handleToggle(item)}
               />
               {item}
@@ -68,17 +56,19 @@ export default function LaserAreaSelector({ gender, selectedAreas, onChange }) {
       <div>
         <h4 className="font-bold text-gray-700 mb-2 mt-4">پکیج‌ها:</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {Object.entries(areas.packages).map(([packName, items], idx) => (
-            <label key={idx} className="flex items-start gap-2">
+          {Object.entries(areas.packages).map(([packName, items]) => (
+            <label key={packName} className="flex items-start gap-2">
               <input
                 type="checkbox"
                 value={packName}
-                checked={selectedAreas.includes(packName)}
+                checked={selectedSet.has(normalize(packName))}
                 onChange={() => handleToggle(packName)}
               />
               <div>
                 <span className="font-semibold">{packName}</span>
-                <span className="text-xs text-gray-500 ml-2">({items.join('، ')})</span>
+                <span className="text-xs text-gray-500 ml-2">
+                  ({items.join("، ")})
+                </span>
               </div>
             </label>
           ))}
