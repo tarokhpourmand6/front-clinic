@@ -18,6 +18,9 @@ import { getPaymentMethods } from '../api/paymentMethodApi';
 import AppointmentCreateModal from '../components/modals/AppointmentCreateModal';
 import PatientCreateModal from '../components/modals/PatientCreateModal';
 
+// ✅ برای ساخت URL دانلود
+import api from '../api/axios';
+
 moment.loadPersian({ dialect: 'persian-modern' });
 
 export default function AppointmentList() {
@@ -173,6 +176,39 @@ export default function AppointmentList() {
     await updateAppointmentItem(appointmentId, { paymentDetails: newPaymentDetails });
   };
 
+  // ---------- Export helpers (CSV/XLSX) ----------
+  const buildExportQuery = () => {
+    const p = new URLSearchParams();
+
+    // نام/تلفن → سرچ
+    const q = (filters?.name || filters?.phone || '').trim();
+    if (q) p.set('q', q);
+
+    // تاریخ روزِ انتخاب‌شده (از-تا یکسان)
+    if (filters?.date) {
+      const j = `${filters.date.year}-${String(filters.date.month).padStart(2,'0')}-${String(filters.date.day).padStart(2,'0')}`;
+      p.set('start', j);
+      p.set('end', j);
+    }
+
+    // اگر خواستی فقط نوع خاصی را خروجی بگیری، اینجا براساس تب فعال ست کن
+    // p.set('type', 'Injection' | 'Laser' | 'CareProductSale');
+
+    return p.toString();
+  };
+
+  const downloadCSV = () => {
+    const q = buildExportQuery();
+    const url = `${api.defaults.baseURL}/export/appointments.csv${q ? `?${q}` : ''}`;
+    window.open(url, '_blank');
+  };
+
+  const downloadXLSX = () => {
+    const q = buildExportQuery();
+    const url = `${api.defaults.baseURL}/export/appointments.xlsx${q ? `?${q}` : ''}`;
+    window.open(url, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex justify-center items-center">
@@ -185,9 +221,18 @@ export default function AppointmentList() {
     <div className="p-4 font-vazir">
       <div className="flex items-center justify-between mb-3">
         <Filters filters={filters} setFilters={setFilters} defaultDate={today} />
-        <button onClick={openCreateBlank} className="px-3 py-2 rounded-xl bg-brand text-white">
-          + ثبت نوبت جدید
-        </button>
+        <div className="flex items-center gap-2">
+          {/* ✅ دکمه‌های خروجی */}
+          <button onClick={downloadCSV} className="px-3 py-2 rounded-xl border">
+            خروجی CSV
+          </button>
+          <button onClick={downloadXLSX} className="px-3 py-2 rounded-xl border">
+            خروجی XLSX
+          </button>
+          <button onClick={openCreateBlank} className="px-3 py-2 rounded-xl bg-brand text-white">
+            + ثبت نوبت جدید
+          </button>
+        </div>
       </div>
 
       <SummaryBox summary={summary} />
@@ -271,11 +316,10 @@ export default function AppointmentList() {
         onSuccess={fetchAppointments}
         onOpenPatientCreate={() => setPatientModalOpen(true)}
         onCreated={(info) => {
-        // info: { id, price, paymentDetails }
-        handleOpenPaymentModal(info.id, info.paymentDetails, info.price);
-        // Optionally: پس از باز شدن مودال پرداخت، لیست را رفرش کن
-        fetchAppointments();
-      }}
+          // info: { id, price, paymentDetails }
+          handleOpenPaymentModal(info.id, info.paymentDetails, info.price);
+          fetchAppointments();
+        }}
       />
 
       {/* مودال ثبت بیمار */}
